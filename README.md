@@ -151,6 +151,23 @@ JavaScript in the browser alone can't write files, so this requires a small PHP 
    - Skip clips that were played recently (based on cooldown time)
    - Save new playback timestamps to `clip_history.json`
 
+### 🔗 Player URL with custom clip list
+
+You can load a custom MP4 list in `player.html` by passing a query parameter:
+
+```
+player.html?clips=yourchannel_mp4_urls.json
+```
+
+**Example:**
+
+```
+https://yourdomain.com/player.html?clips=smtxlost_mp4_urls.json
+```
+
+If no `clips` parameter is provided, the default `clip_mp4_urls.json` will be used.
+
+
 ### Cooldown Configuration
 
 Inside `player.html`, adjust this line to control how long a clip is blocked after being shown:
