@@ -70,6 +70,7 @@ python -m playwright install
    - **Category:** Website Integration or Application
 3. Copy your **Client ID** and **Client Secret**
 4. Paste them into `get_clip_links.py`:
+5. 
    ```python
    client_id = "your-client-id"
    client_secret = "your-client-secret"
