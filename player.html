@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Minimal Twitch Clip Player</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0; height: 100%; background: black;
+      display: flex; justify-content: center; align-items: center;
+    }
+    video {
+      width: 100vw; height: 100vh; background: black;
+    }
+  </style>
+</head>
+<body>
+
+<video id="clipVideo" autoplay playsinline></video>
+
+<script>
+(async () => {
+  const video = document.getElementById('clipVideo');
+  video.muted = false;
+  video.volume = 1.0;
+
+  // Load MP4 URLs from JSON file
+  const clipRes = await fetch('clip_mp4_urls.json');
+  if (!clipRes.ok) {
+    console.error('Error loading clip_mp4_urls.json');
+    return;
+  }
+  const clips = await clipRes.json();
+
+  // Extract slug from MP4 URL
+  function getSlug(url) {
+    const match = url.match(/slug=([a-zA-Z0-9_-]+)/);
+    if (match) return match[1];
+    const fallback = url.match(/\/clip\/([^/?]+)/) || url.match(/\/([a-zA-Z0-9_-]+)-[a-zA-Z0-9]+\/video\.mp4/);
+    return fallback ? fallback[1] : url;
+  }
+
+  // Load previously played slugs from backend
+  const lastPlayedRes = await fetch('get_lastplayed.php');
+  const saved = await lastPlayedRes.json();
+  const lastPlayed = new Map(Object.entries(saved));
+
+  const cooldownMinutes = 240; // Prevent repeat within X minutes
+  const minIntervalMs = cooldownMinutes * 60 * 1000;
+
+  // Clean up old entries (older than cooldown period)
+  const now = Date.now();
+  for (const [slug, ts] of lastPlayed.entries()) {
+    if ((now - ts) > minIntervalMs) {
+      lastPlayed.delete(slug);
+    }
+  }
+
+  function shuffle(array) {
+    for(let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+  }
+
+  shuffle(clips);
+
+  async function playNext() {
+    const now = Date.now();
+    let nextClip = null;
+    let nextSlug = null;
+
+    for (let i = 0; i < clips.length; i++) {
+      const clip = clips[i];
+      const slug = getSlug(clip);
+      if (!lastPlayed.has(slug)) {
+        nextClip = clip;
+        nextSlug = slug;
+        break;
+      }
+    }
+
+    // fallback if no clip found
+    if (!nextClip) {
+      nextClip = clips[Math.floor(Math.random() * clips.length)];
+      nextSlug = getSlug(nextClip);
+    }
+
+    lastPlayed.set(nextSlug, now);
+    video.src = nextClip;
+
+    // Save updated slug timestamps
+    fetch('save_lastplayed.php', {
+      method: 'POST',
+      body: JSON.stringify(Object.fromEntries(lastPlayed)),
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    try {
+      await video.play();
+    } catch (e) {
+      console.error('Playback error:', e);
+    }
+  }
+
+  video.addEventListener('ended', playNext);
+  playNext();
+})();
+</script>
+
+</body>
+</html>
