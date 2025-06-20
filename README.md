@@ -106,28 +106,6 @@ Outputs:
 
 ---
 
-## 🖥️ Optional: Play MP4s in Browser
-
-Open `player.html` in a browser via a local server:
-
-```bash
-# Python 3.x simple HTTP server (Linux/macOS/WSL)
-python3 -m http.server 8000
-```
-
-Then visit [http://localhost:8000/player.html](http://localhost:8000/player.html)
-
-Make sure `clip_mp4_urls.json` is in the same directory.
-
----
-
-## 📝 Log Files
-
-- `get_clip_links.log`: Created fresh on each run, shows how many clips were saved and from which date range.
-- `get_mp4_links.log`: Appends on each run, showing duration, found `.mp4` links, and any errors.
-
----
-
 ## ⚙️ Configuration
 
 Adjust these settings in `get_clip_links.py`:
@@ -143,18 +121,8 @@ Adjust these settings in `get_mp4_links.py`:
 ```python
 target_channel = "your_channel_name"   # Twitch channel to fetch clips from
 ```
----
-
-## 📄 License
-
-MIT – feel free to modify, share, or extend this project.
 
 ---
-
-## 🙋‍♂️ Support
-
-Issues, suggestions, or improvements? Feel free to open a GitHub issue or pull request.
-
 
 ## 🕸️ Hosting & Clip Cooldown (player.html)
 
@@ -192,3 +160,37 @@ const cooldownMinutes = 240; // prevent replay for 4 hours
 ```
 
 Older entries are automatically removed from `clip_history.json` to keep it small and efficient.
+
+---
+
+## 🖥️ Optional: Play MP4s in Browser
+
+Open `player.html` in a browser via a local server:
+
+```bash
+# Python 3.x simple HTTP server (Linux/macOS/WSL)
+python3 -m http.server 8000
+```
+
+Then visit [http://localhost:8000/player.html](http://localhost:8000/player.html)
+
+Make sure `clip_mp4_urls.json` is in the same directory.
+
+---
+
+## 📝 Log Files
+
+- `get_clip_links.log`: Created fresh on each run, shows how many clips were saved and from which date range.
+- `get_mp4_links.log`: Appends on each run, showing duration, found `.mp4` links, and any errors.
+
+---
+
+## 📄 License
+
+MIT – feel free to modify, share, or extend this project.
+
+---
+
+## 🙋‍♂️ Support
+
+Issues, suggestions, or improvements? Feel free to open a GitHub issue or pull request.
