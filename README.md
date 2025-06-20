@@ -162,7 +162,7 @@ player.html?clips=yourchannel_mp4_urls.json
 **Example:**
 
 ```
-https://yourdomain.com/player.html?clips=smtxlost_mp4_urls.json
+https://yourdomain.com/player.html?clips=yourchannel_mp4_urls.json
 ```
 
 If no `clips` parameter is provided, the default `clip_mp4_urls.json` will be used.
