@@ -78,6 +78,24 @@ python -m playwright install
 
 ---
 
+## ⚙️ Configuration
+
+Adjust these settings in `get_clip_links.py`:
+
+```python
+target_channel = "your_channel_name"   # Twitch channel to fetch clips from
+days_back = 7                 # Only clips from the last N days
+min_views = 250              # Only include clips with at least N views
+```
+
+Adjust these settings in `get_mp4_links.py`:
+
+```python
+target_channel = "your_channel_name"   # Twitch channel to fetch clips from
+```
+
+---
+
 ## 🚀 Usage
 
 ### Step 1: Fetch Twitch Clip URLs
@@ -103,24 +121,6 @@ python get_mp4_links.py
 Outputs:
 - `clip_mp4_urls.json` — array of `.mp4` links
 - `get_mp4_links.log` — details and errors (if any)
-
----
-
-## ⚙️ Configuration
-
-Adjust these settings in `get_clip_links.py`:
-
-```python
-target_channel = "your_channel_name"   # Twitch channel to fetch clips from
-days_back = 7                 # Only clips from the last N days
-min_views = 250              # Only include clips with at least N views
-```
-
-Adjust these settings in `get_mp4_links.py`:
-
-```python
-target_channel = "your_channel_name"   # Twitch channel to fetch clips from
-```
 
 ---
 
