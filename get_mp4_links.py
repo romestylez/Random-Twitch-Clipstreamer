@@ -6,7 +6,7 @@ from datetime import datetime
 from playwright.async_api import async_playwright
 
 # === Configuration ===
-target_channel = "channel_name"  # <-- set your Twitch channel here
+target_channel = "smtxlost"  # <-- set your Twitch channel here
 
 input_file = Path(f"{target_channel}_clips.json")
 output_file = Path(f"{target_channel}_mp4_urls.json")
