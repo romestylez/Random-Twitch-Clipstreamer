@@ -11,9 +11,9 @@ client_secret = "your-client-secret"
 target_channel = "target_channel"
 days_back = 30
 min_views = 250
+concurrency = 10
 output_file = f"{target_channel}_mp4_urls.json"
 log_file = "fetch_clips_and_mp4.log"
-concurrency = 10
 
 # === Twitch Access Token ===
 token_res = requests.post("https://id.twitch.tv/oauth2/token", data={
