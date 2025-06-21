@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 client_id = "your-client-id"                          # Your Twitch App's Client ID
 client_secret = "your-secret-id"                      # Your Twitch App's Client Secret
 target_channel = "channel_name"                       # Twitch channel to fetch clips from
-days_back = 730                                       # Number of days to look back for clips
+days_back = 30                                         # Number of days to look back for clips
 min_views = 250                                       # Only include clips with at least this many views
 json_filename = f"{target_channel}_clips.json"        # Output JSON file with filtered clip URLs
 
