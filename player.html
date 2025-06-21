@@ -37,12 +37,15 @@ const clipRes = await fetch(jsonFile);
   const clips = await clipRes.json();
 
   // Extract slug from MP4 URL
-  function getSlug(url) {
-    const match = url.match(/slug=([a-zA-Z0-9_-]+)/);
-    if (match) return match[1];
-    const fallback = url.match(/\/clip\/([^/?]+)/) || url.match(/\/([a-zA-Z0-9_-]+)-[a-zA-Z0-9]+\/video\.mp4/);
-    return fallback ? fallback[1] : url;
-  }
+function getSlug(url) {
+  // Korrekt: clip_slug=Slug-Name
+  const match = url.match(/clip_slug=([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+
+  // Alternativ: aus dem Dateipfad extrahieren
+  const fallback = url.match(/\/media\/([a-zA-Z0-9_-]+)-[a-zA-Z0-9]+\/video\.mp4/);
+  return fallback ? fallback[1] : url;
+}
 
   // Load previously played slugs from backend
   const lastPlayedRes = await fetch('get_lastplayed.php');
