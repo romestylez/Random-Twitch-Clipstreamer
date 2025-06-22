@@ -6,14 +6,14 @@ from datetime import datetime, timedelta, timezone
 from playwright.async_api import async_playwright
 
 # === Configuration ===
-client_id = "your-client-id"
-client_secret = "your-client-secret"
-target_channel = "target_channel"
-days_back = 30
-min_views = 250
-concurrency = 10
-output_file = f"{target_channel}_mp4_urls.json"
-log_file = "fetch_clips_and_mp4.log"
+client_id = "your-client-id"                     # Replace with your Twitch client ID
+client_secret = "your-client-secret"             # Replace with your Twitch client secret
+target_channel = "target_channel"                # Twitch channel to fetch clips from
+days_back = 30                                   # Only fetch clips from the last N days
+min_views = 250                                  # Minimum number of views per clip
+concurrency = 10                                 # Number of parallel browser sessions
+output_file = f"{target_channel}_mp4_urls.json"  # Output file for MP4 links
+log_file = "fetch_clips_and_mp4.log"             # Log file for status and errors
 
 # === Twitch Access Token ===
 token_res = requests.post("https://id.twitch.tv/oauth2/token", data={
