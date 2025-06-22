@@ -1,119 +1,120 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Minimal Twitch Clip Player</title>
+  <meta charset="UTF-8">
+  <title>Random Twitch Clip Player</title>
   <style>
-    html, body {
-      margin: 0; padding: 0; height: 100%; background: black;
-      display: flex; justify-content: center; align-items: center;
+    body {
+      margin: 0;
+      background: black;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
     }
     video {
-      width: 100vw; height: 100vh; background: black;
+      width: 100%;
+      height: auto;
     }
   </style>
 </head>
 <body>
+  <video id="clipPlayer" controls autoplay></video>
 
-<video id="clipVideo" autoplay playsinline></video>
+  <script>
+    const cooldownMinutes = 240; // prevent replay for 4 hours
+    const defaultClipList = "clip_mp4_urls.json";
 
-<script>
-(async () => {
-  const video = document.getElementById('clipVideo');
-  video.muted = false;
-  video.volume = 1.0;
+    const urlParams = new URLSearchParams(window.location.search);
+    const clipListUrl = urlParams.get("clips") || defaultClipList;
 
-  // Load MP4 URLs from JSON file
-// Get JSON filename from URL parameter, fallback to default
-const params = new URLSearchParams(window.location.search);
-const jsonFile = params.get("clips") || "clip_mp4_urls.json";
+    const player = document.getElementById("clipPlayer");
+    let clips = [];
+    let lastPlayed = new Map();
 
-const clipRes = await fetch(jsonFile);
-
-  if (!clipRes.ok) {
-    console.error('Error loading clip_mp4_urls.json');
-    return;
-  }
-  const clips = await clipRes.json();
-
-  // Extract slug from MP4 URL
-function getSlug(url) {
-  // Korrekt: clip_slug=Slug-Name
-  const match = url.match(/clip_slug=([a-zA-Z0-9_-]+)/);
-  if (match) return match[1];
-
-  // Alternativ: aus dem Dateipfad extrahieren
-  const fallback = url.match(/\/media\/([a-zA-Z0-9_-]+)-[a-zA-Z0-9]+\/video\.mp4/);
-  return fallback ? fallback[1] : url;
-}
-
-  // Load previously played slugs from backend
-  const lastPlayedRes = await fetch('get_lastplayed.php');
-  const saved = await lastPlayedRes.json();
-  const lastPlayed = new Map(Object.entries(saved));
-
-  const cooldownMinutes = 240; // Prevent repeat within X minutes
-  const minIntervalMs = cooldownMinutes * 60 * 1000;
-
-  // Clean up old entries (older than cooldown period)
-  const now = Date.now();
-  for (const [slug, ts] of lastPlayed.entries()) {
-    if ((now - ts) > minIntervalMs) {
-      lastPlayed.delete(slug);
-    }
-  }
-
-  function shuffle(array) {
-    for(let i = array.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [array[i], array[j]] = [array[j], array[i]];
-    }
-  }
-
-  shuffle(clips);
-
-  async function playNext() {
-    const now = Date.now();
-    let nextClip = null;
-    let nextSlug = null;
-
-    for (let i = 0; i < clips.length; i++) {
-      const clip = clips[i];
-      const slug = getSlug(clip);
-      if (!lastPlayed.has(slug)) {
-        nextClip = clip;
-        nextSlug = slug;
-        break;
+    async function loadClipHistory() {
+      try {
+        const res = await fetch("get_lastplayed.php");
+        const data = await res.json();
+        lastPlayed = new Map(Object.entries(data));
+      } catch (e) {
+        console.warn("No clip history found.");
+        lastPlayed = new Map();
       }
     }
 
-    // fallback if no clip found
-    if (!nextClip) {
-      nextClip = clips[Math.floor(Math.random() * clips.length)];
-      nextSlug = getSlug(nextClip);
+    async function saveClipHistory() {
+      try {
+        const obj = Object.fromEntries(lastPlayed);
+        await fetch("save_lastplayed.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(obj),
+        });
+      } catch (e) {
+        console.error("Could not save clip history.");
+      }
     }
 
-    lastPlayed.set(nextSlug, now);
-    video.src = nextClip;
+    function getSlug(url) {
+      const match = url.match(/clip_slug%22%3A%22([^%]+)%22/);
+      if (match) return match[1];
 
-    // Save updated slug timestamps
-    fetch('save_lastplayed.php', {
-      method: 'POST',
-      body: JSON.stringify(Object.fromEntries(lastPlayed)),
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-    try {
-      await video.play();
-    } catch (e) {
-      console.error('Playback error:', e);
+      const fallback = url.match(/\/media\/([^\/]+)\//);
+      return fallback ? fallback[1] : url;
     }
-  }
 
-  video.addEventListener('ended', playNext);
-  playNext();
-})();
-</script>
+    function filterByCooldown(list) {
+      const now = Date.now();
+      return list.filter(url => {
+        const slug = getSlug(url);
+        const last = parseInt(lastPlayed.get(slug) || 0);
+        return now - last > cooldownMinutes * 60 * 1000;
+      });
+    }
 
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    async function playNextClip() {
+      const now = Date.now();
+      let available = filterByCooldown(clips);
+
+      if (available.length === 0) {
+        console.log("No clips available. Resetting history.");
+        lastPlayed.clear();
+        await saveClipHistory();
+        available = [...clips];
+      }
+
+      const clip = shuffle(available)[0];
+      const slug = getSlug(clip);
+      player.src = clip;
+      player.load();
+      player.play();
+
+      lastPlayed.set(slug, now);
+      await saveClipHistory();
+    }
+
+    async function start() {
+      const res = await fetch(clipListUrl);
+      clips = await res.json();
+
+      await loadClipHistory();
+      await playNextClip();
+
+      player.addEventListener("ended", () => {
+        playNextClip();
+      });
+    }
+
+    start();
+  </script>
 </body>
 </html>
