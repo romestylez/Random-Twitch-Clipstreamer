@@ -25,6 +25,11 @@ A lightweight tool to collect Twitch clips based on view count and date range, e
   pip install playwright
   python -m playwright install
   ```
+- Python Requests
+  ```bash
+     pip install requests
+  ```
+
 
 ## ⚙️ Usage
 
