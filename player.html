@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Random Twitch Clip Player</title>
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    video {
+      width: 100%;
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+  <video id="clipPlayer" autoplay playsinline></video>
+
+  <script>
+    const cooldownMinutes = 240; // prevent replay for 4 hours
+    const defaultClipList = "clip_mp4_urls.json";
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const clipListUrl = urlParams.get("clips") || defaultClipList;
+
+    const player = document.getElementById("clipPlayer");
+    let clips = [];
+    let lastPlayed = new Map();
+
+    async function loadClipHistory() {
+      try {
+        const res = await fetch("get_lastplayed.php");
+        const data = await res.json();
+        lastPlayed = new Map(Object.entries(data));
+      } catch (e) {
+        console.warn("No clip history found.");
+        lastPlayed = new Map();
+      }
+    }
+
+    async function saveClipHistory() {
+      try {
+        const obj = Object.fromEntries(lastPlayed);
+        await fetch("save_lastplayed.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(obj),
+        });
+      } catch (e) {
+        console.error("Could not save clip history.");
+      }
+    }
+
+    function getSlug(url) {
+      const match = url.match(/clip_slug%22%3A%22([^%]+)%22/);
+      if (match) return match[1];
+
+      const fallback = url.match(/\/media\/([^\/]+)\//);
+      return fallback ? fallback[1] : url;
+    }
+
+    function filterByCooldown(list) {
+      const now = Date.now();
+      return list.filter(url => {
+        const slug = getSlug(url);
+        const last = parseInt(lastPlayed.get(slug) || 0);
+        return now - last > cooldownMinutes * 60 * 1000;
+      });
+    }
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    async function playNextClip() {
+      const now = Date.now();
+      let available = filterByCooldown(clips);
+
+      if (available.length === 0) {
+        console.log("No clips available. Resetting history.");
+        lastPlayed.clear();
+        await saveClipHistory();
+        available = [...clips];
+      }
+
+      const clip = shuffle(available)[0];
+      const slug = getSlug(clip);
+      player.src = clip;
+      player.load();
+      player.play();
+
+      lastPlayed.set(slug, now);
+      await saveClipHistory();
+    }
+
+    async function start() {
+      const res = await fetch(clipListUrl);
+      clips = await res.json();
+
+      await loadClipHistory();
+      await playNextClip();
+
+      player.addEventListener("ended", () => {
+        playNextClip();
+      });
+    }
+
+    start();
+  </script>
+</body>
+</html>
