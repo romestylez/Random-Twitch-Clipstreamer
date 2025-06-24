@@ -1,4 +1,4 @@
-# 🎥 Twitch Clip Collector & Random Player
+# 🎲 Random Twitch Clipstreamer
 
 A lightweight tool to collect Twitch clips based on view count and date range, extract `.mp4` links or download the videos directly, and play them randomly in a browser player with cooldown logic.
 
