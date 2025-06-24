@@ -3,21 +3,23 @@ import os
 import json
 import subprocess
 import requests
+import asyncio
 from datetime import datetime, timedelta, UTC
 from pathlib import Path
 import logging
 
 # Optional: Playwright für /local
 try:
-    from playwright.sync_api import sync_playwright
+    from playwright.async_api import async_playwright
 except ImportError:
-    sync_playwright = None
+    async_playwright = None
 
 # --- Logging setup ---
 log_file = "fetch_clips_and_mp4.log"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[
         logging.FileHandler(log_file, mode="w", encoding="utf-8"),
         logging.StreamHandler(sys.stdout)
@@ -29,10 +31,11 @@ log = logging.getLogger()
 CLIENT_ID = "YOUR-CLIENT-ID"
 CLIENT_SECRET = "YOUR-CLIENT-SECRET"
 CHANNEL_NAME = "YOUR-CHANNEL"
-DAYS_BACK = 30
-MIN_VIEWS = 500
+DAYS_BACK = 365
+MIN_VIEWS = 250
 DOWNLOAD_DIR = "Twitch_Clips"
 OUTPUT_FILE = f"{CHANNEL_NAME}_mp4_urls.json"
+CONCURRENCY = 5
 
 def get_oauth_token(client_id, client_secret):
     url = 'https://id.twitch.tv/oauth2/token'
@@ -81,28 +84,32 @@ def get_channel_clips(broadcaster_id, client_id, access_token, started_at, ended
         params['after'] = cursor
     return [clip for clip in clips if clip.get("view_count", 0) >= MIN_VIEWS]
 
-def fetch_mp4_url_with_playwright(clip_url):
-    if sync_playwright is None:
+async def fetch_mp4(clip_url, slug, semaphore):
+    if async_playwright is None:
         log.error("❌ Playwright is not installed. Use 'pip install playwright' and run 'playwright install'")
         return None
-
-    with sync_playwright() as p:
-        browser = p.firefox.launch(headless=True)
-        context = browser.new_context()
-        page = context.new_page()
+    async with semaphore:
+        log.info(f"🔍 Extracting MP4 URL for: {slug}")
         try:
-            page.goto(clip_url, timeout=15000)
-            page.wait_for_selector("video", timeout=15000)
-            mp4_url = page.eval_on_selector("video", "el => el.src")
-            return mp4_url
+            async with async_playwright() as p:
+                browser = await p.firefox.launch(headless=True)
+                context = await browser.new_context()
+                page = await context.new_page()
+                try:
+                    await page.goto(clip_url, timeout=10000)
+                    mp4_url = await page.evaluate("document.querySelector('video')?.src")
+                    if not mp4_url:
+                        await page.wait_for_selector("video", timeout=4000)
+                        mp4_url = await page.eval_on_selector("video", "el => el.src")
+                    return mp4_url
+                finally:
+                    await context.close()
+                    await browser.close()
         except Exception as e:
-            log.warning(f"⚠️  Failed to get MP4 URL from {clip_url}: {e}")
+            log.warning(f"⚠️  {slug} failed: {e}")
             return None
-        finally:
-            context.close()
-            browser.close()
 
-def main():
+async def main_async():
     mode = sys.argv[1] if len(sys.argv) > 1 else "/local"
     is_download = mode.lower() == "/download"
     is_local = mode.lower() == "/local"
@@ -130,45 +137,42 @@ def main():
     downloaded = []
     planned_ids = set()
 
-    for clip in clips:
-        slug = clip["id"]
-        planned_ids.add(slug)
-        if is_local:
-            log.info(f"🔍 Extracting MP4 URL for: {slug}")
-            mp4_url = fetch_mp4_url_with_playwright(clip["url"])
-            if mp4_url:
-                downloaded.append(mp4_url)
-            continue
-
-        # /download-Modus
-        upload_date = clip.get("created_at", "")[:10].replace("-", "")
-        filename = f"{upload_date}_{slug}.mp4"
-        filepath = Path(DOWNLOAD_DIR) / filename
-        if filepath.exists():
-            log.info(f"✔️  Already exists: {filename}")
-            downloaded.append(str(filepath).replace("\\", "/"))
-            continue
-
-        log.info(f"⬇️  Downloading: {slug}")
-        yt_dlp_cmd = [
-            'yt-dlp',
-            '--paths', DOWNLOAD_DIR,
-            '-o', filename,
-            '--no-warnings',
-            '--continue',
-            '--ignore-errors',
-            clip["url"]
-        ]
-        try:
-            subprocess.run(yt_dlp_cmd, check=True, capture_output=True, text=True)
+    if is_local:
+        semaphore = asyncio.Semaphore(CONCURRENCY)
+        tasks = [fetch_mp4(clip["url"], clip["id"], semaphore) for clip in clips]
+        results = await asyncio.gather(*tasks)
+        downloaded = [r for r in results if r]
+    else:
+        for clip in clips:
+            slug = clip["id"]
+            planned_ids.add(slug)
+            upload_date = clip.get("created_at", "")[:10].replace("-", "")
+            filename = f"{upload_date}_{slug}.mp4"
+            filepath = Path(DOWNLOAD_DIR) / filename
             if filepath.exists():
+                log.info(f"✔️  Already exists: {filename}")
                 downloaded.append(str(filepath).replace("\\", "/"))
-            else:
-                log.warning(f"⚠️  Could not confirm download of: {slug}")
-        except subprocess.CalledProcessError as e:
-            log.warning(f"⚠️  Failed to download {slug}: {e}")
+                continue
 
-    if is_download:
+            log.info(f"⬇️  Downloading: {slug}")
+            yt_dlp_cmd = [
+                'yt-dlp',
+                '--paths', DOWNLOAD_DIR,
+                '-o', filename,
+                '--no-warnings',
+                '--continue',
+                '--ignore-errors',
+                clip["url"]
+            ]
+            try:
+                subprocess.run(yt_dlp_cmd, check=True, capture_output=True, text=True)
+                if filepath.exists():
+                    downloaded.append(str(filepath).replace("\\", "/"))
+                else:
+                    log.warning(f"⚠️  Could not confirm download of: {slug}")
+            except subprocess.CalledProcessError as e:
+                log.warning(f"⚠️  Failed to download {slug}: {e}")
+
         log.info("🧹 Removing obsolete files...")
         all_files = list(Path(DOWNLOAD_DIR).glob("*.mp4"))
         for file in all_files:
@@ -184,6 +188,9 @@ def main():
         json.dump(downloaded, f, indent=2, ensure_ascii=False)
 
     log.info(f"✅ Done. {len(downloaded)} files listed.")
+
+def main():
+    asyncio.run(main_async())
 
 if __name__ == "__main__":
     main()
