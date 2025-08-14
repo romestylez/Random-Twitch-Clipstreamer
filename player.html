@@ -22,7 +22,7 @@
   <video id="clipPlayer" autoplay playsinline></video>
 
   <script>
-    const cooldownMinutes = 240; // prevent replay for 4 hours
+    const cooldownMinutes = 240;
     const defaultClipList = "clip_mp4_urls.json";
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -59,14 +59,14 @@
     function getSlug(url) {
       const match = url.match(/clip_slug%22%3A%22([^%]+)%22/);
       if (match) return match[1];
-
       const fallback = url.match(/\/media\/([^\/]+)\//);
       return fallback ? fallback[1] : url;
     }
 
     function filterByCooldown(list) {
       const now = Date.now();
-      return list.filter(url => {
+      return list.filter(clip => {
+        const url = clip.url || clip;
         const slug = getSlug(url);
         const last = parseInt(lastPlayed.get(slug) || 0);
         return now - last > cooldownMinutes * 60 * 1000;
@@ -81,6 +81,19 @@
       return array;
     }
 
+async function writeClipDate(dateStr) {
+  try {
+    await fetch("write_clipdate.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: dateStr }),
+    });
+  } catch (e) {
+    console.warn("❌ Could not write clip date:", e);
+  }
+}
+
+
     async function playNextClip() {
       const now = Date.now();
       let available = filterByCooldown(clips);
@@ -93,10 +106,17 @@
       }
 
       const clip = shuffle(available)[0];
-      const slug = getSlug(clip);
-      player.src = clip;
+      const url = clip.url || clip;
+      const slug = getSlug(url);
+      const date = clip.date || null;
+
+      player.src = url;
       player.load();
       player.play();
+
+      if (date) {
+        await writeClipDate(date);
+      }
 
       lastPlayed.set(slug, now);
       await saveClipHistory();

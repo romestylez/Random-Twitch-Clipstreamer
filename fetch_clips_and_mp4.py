@@ -7,6 +7,11 @@ import asyncio
 from datetime import datetime, timedelta, UTC
 from pathlib import Path
 import logging
+from dotenv import load_dotenv  # <--- NEU
+
+# --- .env laden ---
+# pip install python-dotenv
+load_dotenv()
 
 # Optional: Playwright für /local
 try:
@@ -28,13 +33,14 @@ logging.basicConfig(
 log = logging.getLogger()
 
 # --- Configuration ---
-CLIENT_ID = "YOUR-CLIENT-ID"
-CLIENT_SECRET = "YOUR-CLIENT-SECRET"
-CHANNEL_NAME = "YOUR-CHANNEL"
-DAYS_BACK = 365
+CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+CHANNEL_NAME = os.getenv("CHANNEL_NAME")
+
+DAYS_BACK = 730
 MIN_VIEWS = 250
 DOWNLOAD_DIR = "Twitch_Clips"
-OUTPUT_FILE = f"{CHANNEL_NAME}_mp4_urls.json"
+OUTPUT_FILE = f"{CHANNEL_NAME}_mp4_urls.json" if CHANNEL_NAME else "mp4_urls.json"
 CONCURRENCY = 5
 
 def get_oauth_token(client_id, client_secret):
@@ -184,10 +190,26 @@ async def main_async():
                     log.warning(f"⚠️  Could not delete {file.name}: {e}")
 
     log.info(f"💾 Writing output to {OUTPUT_FILE}...")
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(downloaded, f, indent=2, ensure_ascii=False)
 
-    log.info(f"✅ Done. {len(downloaded)} files listed.")
+    final_data = []
+
+    for clip in clips:
+        slug = clip["id"]
+        date_str = clip.get("created_at", "")[:10]  # "2023-07-05"
+        upload_date = date_str.replace("-", "")
+        filename = f"{upload_date}_{slug}.mp4"
+        filepath = str(Path(DOWNLOAD_DIR) / filename).replace("\\", "/")
+
+        if filepath in downloaded:
+            final_data.append({
+                "url": filepath,
+                "date": date_str
+            })
+
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(final_data, f, indent=2, ensure_ascii=False)
+
+    log.info(f"✅ Done. {len(final_data)} files listed.")
 
 def main():
     asyncio.run(main_async())
