@@ -1,99 +1,99 @@
-# 🎲 Random Twitch Clipstreamer
+# 🎥 Random Twitch Clipstreamer
 
-A lightweight tool to collect Twitch clips based on view count and date range, extract `.mp4` links or download the videos directly, and play them randomly in a browser player with cooldown logic.
+Sammelt Twitch-Clips nach Zeitraum & Mindest-Views, extrahiert `.mp4`-Links **oder lädt die Clips herunter**, und spielt sie zufällig im Browser ab – mit Cooldown, History **und optionaler Anzeige des Clip-Datums**.
 
-## 🧩 Components
+## 📦 Komponenten
+- 🐍 `fetch_clips_and_mp4.py` – Clip-Fetcher mit zwei Modi:
+  - `/local` – nur `.mp4`-Links sammeln → JSON
+  - `/download` – Clips via `yt-dlp` laden → lokale Pfade in JSON  
+- 🌐 `player.html` – HTML5-Player mit Zufallsauswahl, Cooldown & History  
+- 📜 `get_lastplayed.php` / `save_lastplayed.php` – vom Player genutzte Hilfsskripte zur Speicherung/Abruf des zuletzt gespielten Clips  
+- 🗓️ `write_clipdate.php` – schreibt das **aktuelle Clip-Datum** (z. B. für Overlay/OBS) in eine Textdatei  
+- ▶️ `start.bat` – Beispiel-Starter für Windows  
+- ⚙️ `.env.example` – Beispiel-Konfiguration für API-Keys
 
-- `fetch_clips_and_mp4.py`: Twitch API clip fetcher with two modes:
-  - `/local`: Extracts only the `.mp4` links and stores them in a JSON file
-  - `/download`: Downloads clips using `yt-dlp` and stores local file paths in the JSON
-
-- `player.html`: HTML5-based random clip player
-- `get_lastplayed.php` / `save_lastplayed.php`: Handle playback history server-side
-
-## 🛠 Requirements
-
+## 🔧 Voraussetzungen
 - Python 3.8+
-- Twitch Developer Application (`client_id`, `client_secret`)
-- Playwright (only needed for `/local` mode to extract `.mp4` links):
-  ```bash
-  pip install playwright
-  python -m playwright install
-  ```
-  
-- yt-dlp (only needed for `/download` mode to download the clips):
-  ```bash
-  pip install yt-dlp
-  ```
-  
-- Python Requests
-  ```bash
-  pip install requests
-  ```
-
-
-## ⚙️ Usage
-
-### Mode 1 – Extract mp4 links only
+- Twitch Developer App (Client-ID/Secret)
+- `requests`, ggf. `playwright` (nur `/local`), `yt-dlp` (nur `/download`)
+- Optional: lokaler Webserver (z. B. Laragon) für Player & PHP-Endpoints
 
 ```bash
-python fetch_clips_and_mp4.py /local
+pip install requests
+# Für /local:
+pip install playwright
+python -m playwright install
+# Für /download:
+pip install yt-dlp
 ```
 
-- Uses Playwright to extract `.mp4` links
-- Saves results to a JSON file
+## ⚙️ Installation & Konfiguration
+1. Repo klonen.  
+2. `.env.example` nach `.env` kopieren und `CLIENT_ID`, `CLIENT_SECRET` usw. setzen.  
+3. In `fetch_clips_and_mp4.py` Basiswerte anpassen:
+   ```py
+   CHANNEL_NAME = "dein_channel"
+   DAYS_BACK = 30
+   MIN_VIEWS = 250
+   ```
+   - `DAYS_BACK`: Zeitfenster in Tagen (z. B. 730 = 2 Jahre)  
+   - `MIN_VIEWS`: minimale Views
 
-### Mode 2 – Download clips
-
+## ▶️ Nutzung (Fetcher)
 ```bash
+# Nur Links extrahieren:
+python fetch_clips_and_mp4.py /local
+
+# Clips herunterladen (Default, wenn kein Parameter):
 python fetch_clips_and_mp4.py /download
 ```
 
-- Downloads all clips as `.mp4` files using `yt-dlp`
-- Generates a JSON file with the local file paths
+✨ **Auto-Cleanup** (nur `/download`): Clips außerhalb des Zeitfensters werden automatisch gelöscht.
 
-> If no parameter is passed, `/download` is used by default.
+## 📂 Output
+- `<CHANNEL>_mp4_urls.json` – Liste mit `.mp4`-Links oder lokalen Pfaden  
+- `fetch_clips_and_mp4.log` – Protokoll (API, Downloads, Löschungen)
 
-## 🧹 Auto Cleanup
-
-In `/download` mode, any local clip that is **no longer within the defined timeframe** (e.g. older than 30 days) will be automatically deleted. This keeps your `Twitch_Clips` folder small and up to date.
-
-## 🔧 Configuration
-
-In `fetch_clips_and_mp4.py`:
-
-```python
-CHANNEL_NAME = "smtxlost"
-DAYS_BACK = 30
-MIN_VIEWS = 250
+**Beispiel-JSON-Schema (vereinfacht):**
+```json
+[
+  {
+    "id": "ClipID",
+    "title": "Clip-Titel",
+    "url": "https://...mp4" ,
+    "local_path": "Twitch_Clips/...",
+    "created_at": "2024-12-31T23:59:59Z",
+    "view_count": 1234
+  }
+]
 ```
 
-- `DAYS_BACK`: Time window in days (e.g. 730 = 2 years)
-- `MIN_VIEWS`: Minimum number of views for a clip to be considered
+## 🎬 HTML-Player
+Dateien per Webserver bereitstellen:
+- `player.html`, `get_lastplayed.php`, `save_lastplayed.php`, `<CHANNEL>_mp4_urls.json`
 
-## 📦 Output
-
-- `smtxlost_mp4_urls.json`: List of `.mp4` links or file paths
-- `fetch_clips_and_mp4.log`: Detailed log of API responses, downloads, and deletions
-
-## 🎬 HTML Player
-
-Use a local webserver (e.g. Laragon) to serve the following files:
-
-- `player.html`
-- `get_lastplayed.php`
-- `save_lastplayed.php`
-- `smtxlost_mp4_urls.json`
-
-### Start the player:
-
-```text
-http://localhost/player.html?clips=smtxlost_mp4_urls.json
+Start:
+```
+http://localhost/player.html?clips=<CHANNEL>_mp4_urls.json
 ```
 
-- Cooldown is enforced per clip (default: 240 minutes)
-- History is saved in `clip_history.json`
+### 🔑 Funktionen
+- ⏱️ **Cooldown pro Clip** (Standard: 240 Minuten)  
+- 📜 **History** in `clip_history.json`  
+- 🗓️ **Clip-Datum anzeigen**: `player.html` liest `created_at` aus der JSON.  
+  Optional schreibt `write_clipdate.php` das Datum in eine Textdatei → per OBS-Textquelle („Read from file“) im Stream einblendbar.
 
-## 📄 License
+### 🧩 Hilfsskripte (Player-Rückrufe)
+Diese PHP-Dateien werden **vom Player per `fetch()`** aufgerufen. Sie sind **keine öffentliche API**, sondern kleine Dateihilfen für den lokalen Player/OBS:
+- `GET get_lastplayed.php` – liefert das zuletzt gespielte Element  
+- `POST save_lastplayed.php` – speichert das zuletzt gespielte Element  
+- `POST write_clipdate.php` – schreibt das aktuelle Clip-Datum in eine Textdatei (für OBS-Overlays nutzbar)
 
-MIT – free for personal and commercial use.
+## 🖥️ Windows-Start
+```bat
+start.bat
+```
+> Startskript zum schnellen Aufruf der Standard-Befehle (anpassen nach Bedarf).
+
+## 📜 Lizenz
+MIT – frei für private & kommerzielle Nutzung.
