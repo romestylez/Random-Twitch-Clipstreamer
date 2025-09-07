@@ -78,7 +78,7 @@ http://localhost/player.html?clips=<CHANNEL>_mp4_urls.json
 ```
 
 ### 🔑 Funktionen
-- ⏱️ **Cooldown pro Clip** (Standard: 240 Minuten)  
+- ⏱️ **Cooldown pro Clip** (Standard: 240 Minuten - anpassbar in der player.htlm -> const cooldownMinutes = 240;)  
 - 📜 **History** in `clip_history.json`  
 - 🗓️ **Clip-Datum anzeigen**: `player.html` liest `created_at` aus der JSON.  
   Optional schreibt `write_clipdate.php` das Datum in eine Textdatei → per OBS-Textquelle („Read from file“) im Stream einblendbar.
