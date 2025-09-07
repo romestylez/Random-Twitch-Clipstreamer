@@ -15,11 +15,6 @@ A lightweight tool to collect Twitch clips based on view count and date range, e
 
 - Python 3.8+
 - Twitch Developer Application (`client_id`, `client_secret`)
-- `yt-dlp` (for downloading):
-  ```bash
-  pip install yt-dlp
-  ```
-
 - Playwright (only needed for `/local` mode to extract `.mp4` links):
   ```bash
   pip install playwright
