@@ -56,19 +56,17 @@
       }
     }
 
-    function getSlug(url) {
-      const match = url.match(/clip_slug%22%3A%22([^%]+)%22/);
-      if (match) return match[1];
-      const fallback = url.match(/\/media\/([^\/]+)\//);
-      return fallback ? fallback[1] : url;
-    }
+function getSlug(url) {
+  return url.split('/').pop().split('?')[0];
+}
+
 
     function filterByCooldown(list) {
       const now = Date.now();
       return list.filter(clip => {
         const url = clip.url || clip;
         const slug = getSlug(url);
-        const last = parseInt(lastPlayed.get(slug) || 0);
+        const last = Number(lastPlayed.get(slug)) || 0;
         return now - last > cooldownMinutes * 60 * 1000;
       });
     }
