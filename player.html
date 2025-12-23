@@ -23,6 +23,7 @@
 
   <script>
     const cooldownMinutes = 10080;
+    const cooldownMs = cooldownMinutes * 60 * 1000;
     const defaultClipList = "clip_mp4_urls.json";
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -30,46 +31,64 @@
 
     const player = document.getElementById("clipPlayer");
     let clips = [];
-    let lastPlayed = new Map();
+    let lastPlayed = {};
 
     async function loadClipHistory() {
-      try {
-        const res = await fetch("get_lastplayed.php");
-        const data = await res.json();
-        lastPlayed = new Map(Object.entries(data));
-      } catch (e) {
-        console.warn("No clip history found.");
-        lastPlayed = new Map();
-      }
-    }
-
-    async function saveClipHistory() {
-      try {
-        const obj = Object.fromEntries(lastPlayed);
-        await fetch("save_lastplayed.php", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(obj),
-        });
-      } catch (e) {
-        console.error("Could not save clip history.");
-      }
-    }
-
-function getSlug(url) {
-  return url.split('/').pop().split('?')[0];
+  try {
+    const res = await fetch("get_lastplayed.php");
+    lastPlayed = await res.json();
+  } catch {
+    lastPlayed = {};
+  }
 }
 
 
+    let savePending = false;
+
+async function saveClipHistory() {
+  if (savePending) return;
+  savePending = true;
+
+  await fetch("save_lastplayed.php", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(lastPlayed),
+  });
+
+  savePending = false;
+}
+
+
+function getClipId(clip) {
+  return clip.url; // stabil & eindeutig
+}
+
     function filterByCooldown(list) {
-      const now = Date.now();
-      return list.filter(clip => {
-        const url = clip.url || clip;
-        const slug = getSlug(url);
-        const last = Number(lastPlayed.get(slug)) || 0;
-        return now - last > cooldownMinutes * 60 * 1000;
-      });
+  const now = Date.now();
+
+  return list.filter(clip => {
+    const id = getClipId(clip);
+    const last = Number(lastPlayed[id]) || 0;
+    return now - last >= cooldownMs;
+  });
+}
+
+function cleanupExpiredCooldowns() {
+  const now = Date.now();
+  let removed = 0;
+
+  for (const id in lastPlayed) {
+    if (now - lastPlayed[id] >= cooldownMs) {
+      delete lastPlayed[id];
+      removed++;
     }
+  }
+
+  if (removed > 0) {
+    console.log(`Cooldown abgelaufen: ${removed} Clips freigegeben`);
+    saveClipHistory();
+  }
+}
 
     function shuffle(array) {
       for (let i = array.length - 1; i > 0; i--) {
@@ -92,33 +111,33 @@ async function writeClipDate(dateStr) {
 }
 
 
-    async function playNextClip() {
-      const now = Date.now();
-      let available = filterByCooldown(clips);
+  async function playNextClip() {
+  cleanupExpiredCooldowns();
 
-      if (available.length === 0) {
-        console.log("No clips available. Resetting history.");
-        lastPlayed.clear();
-        await saveClipHistory();
-        available = [...clips];
-      }
+  const available = filterByCooldown(clips);
 
-      const clip = shuffle(available)[0];
-      const url = clip.url || clip;
-      const slug = getSlug(url);
-      const date = clip.date || null;
 
-      player.src = url;
-      player.load();
-      player.play();
+if (available.length === 0) {
+  console.warn("Keine Clips verfügbar – alle im Cooldown.");
+  return;
+}
 
-      if (date) {
-        await writeClipDate(date);
-      }
+  const clip = available[Math.floor(Math.random() * available.length)];
+  const id = getClipId(clip);
 
-      lastPlayed.set(slug, now);
-      await saveClipHistory();
-    }
+player.src = clip.url;
+player.load();
+await player.play();
+
+if (clip.date) {
+  writeClipDate(clip.date);
+}
+
+lastPlayed[id] = Date.now();
+saveClipHistory();
+
+}
+
 
     async function start() {
       const res = await fetch(clipListUrl);
