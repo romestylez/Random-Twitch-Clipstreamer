@@ -131,4 +131,4 @@ Voraussetzung: [Go 1.21+](https://go.dev/dl/)
 
 ## 📜 Lizenz
 
-MIT – frei für private & kommerzielle Nutzung.
+Mach was du willst aber gönn Credits an mich
