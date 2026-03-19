@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Twitch Clipstreamer — Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0e0e10;
+      color: #efeff1;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      padding: 24px;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #9146ff;
+      margin-bottom: 4px;
+    }
+    .subtitle { color: #adadb8; font-size: 13px; margin-bottom: 24px; }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+      padding: 10px 14px;
+      background: #18181b;
+      border-radius: 8px;
+      border: 1px solid #2a2a2d;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge.idle    { background: #1f5c2e; color: #3fba5f; }
+    .badge.running { background: #5c3e1f; color: #f9a825; }
+    .badge.error   { background: #5c1f1f; color: #f44336; }
+    .next-run { color: #adadb8; font-size: 12px; margin-left: auto; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: #18181b;
+      border: 1px solid #2a2a2d;
+      border-radius: 10px;
+      padding: 18px;
+    }
+    .card h2 {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #9146ff;
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: #adadb8;
+      margin-bottom: 4px;
+      margin-top: 10px;
+    }
+    label:first-of-type { margin-top: 0; }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="password"],
+    select {
+      width: 100%;
+      background: #0e0e10;
+      border: 1px solid #3a3a40;
+      border-radius: 6px;
+      color: #efeff1;
+      padding: 7px 10px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input:focus, select:focus { border-color: #9146ff; }
+
+    .radio-group {
+      display: flex;
+      gap: 16px;
+      margin-top: 4px;
+    }
+    .radio-group label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0;
+      cursor: pointer;
+      color: #efeff1;
+      font-size: 13px;
+    }
+    .radio-group input[type="radio"] { width: auto; margin: 0; }
+
+    .schedule-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .schedule-row label { margin: 0; color: #efeff1; }
+    .schedule-row input[type="checkbox"] { width: auto; cursor: pointer; }
+    .schedule-row input[type="number"]   { width: 70px; }
+
+    .hint { font-size: 11px; color: #adadb8; margin-top: 4px; }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 9px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary   { background: #9146ff; color: #fff; }
+    .btn-secondary { background: #2a2a2d; color: #efeff1; }
+    .btn-danger    { background: #b33030; color: #fff; }
+    .btn-primary:not(:disabled):hover   { opacity: .85; }
+    .btn-secondary:not(:disabled):hover { background: #3a3a40; }
+
+    .toast {
+      display: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      align-self: center;
+    }
+    .toast.ok  { display: inline-block; background: #1f5c2e; color: #3fba5f; }
+    .toast.err { display: inline-block; background: #5c1f1f; color: #f44336; }
+
+    .log-card {
+      background: #18181b;
+      border: 1px solid #2a2a2d;
+      border-radius: 10px;
+      padding: 18px;
+    }
+    .log-card h2 {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #9146ff;
+      margin-bottom: 12px;
+    }
+    .log-pre {
+      background: #0e0e10;
+      border: 1px solid #2a2a2d;
+      border-radius: 6px;
+      padding: 12px;
+      font-family: "Consolas", "Courier New", monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      height: 280px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .log-pre .err  { color: #f44336; }
+    .log-pre .warn { color: #f9a825; }
+    .log-pre .ok   { color: #3fba5f; }
+  </style>
+</head>
+<body>
+
+<h1>🎬 Twitch Clipstreamer</h1>
+<p class="subtitle">Admin-Oberfläche — Konfiguration, Downloads &amp; Logs</p>
+
+<div class="status-bar">
+  <span id="statusBadge" class="badge idle">● Bereit</span>
+  <span id="lastRun" style="font-size:12px;color:#adadb8;"></span>
+  <span id="nextRun" class="next-run"></span>
+</div>
+
+<div class="grid">
+
+  <!-- Twitch API -->
+  <div class="card">
+    <h2>Twitch API</h2>
+    <label>Client ID</label>
+    <input type="password" id="client_id" placeholder="deine-client-id">
+    <label>Client Secret</label>
+    <input type="password" id="client_secret" placeholder="dein-client-secret">
+    <label>Channel Name</label>
+    <input type="text" id="channel_name" placeholder="dein_channel">
+  </div>
+
+  <!-- Filter -->
+  <div class="card">
+    <h2>Filter</h2>
+    <label>Tage zurück (Days Back)</label>
+    <input type="number" id="days_back" min="1" max="9999">
+    <label>Mindest-Views (Min Views)</label>
+    <input type="number" id="min_views" min="0">
+    <label>Whitelist (Komma-getrennte Kategorien — nur diese)</label>
+    <input type="text" id="whitelist" placeholder="z.B. Just Chatting,IRL">
+    <label>Blacklist (Komma-getrennte Kategorien — diese ausschließen)</label>
+    <input type="text" id="blacklist" placeholder="z.B. Just Chatting">
+  </div>
+
+  <!-- Download -->
+  <div class="card">
+    <h2>Download</h2>
+    <label>Modus</label>
+    <div class="radio-group">
+      <label><input type="radio" name="download_mode" value="download"> Download (lokal speichern via yt-dlp)</label>
+      <label><input type="radio" name="download_mode" value="local"> Local (nur MP4-URLs extrahieren)</label>
+    </div>
+    <label style="margin-top:12px;">Download-Verzeichnis</label>
+    <input type="text" id="download_dir" placeholder="Twitch_Clips">
+    <label>HTTP-Port</label>
+    <input type="number" id="port" min="1" max="65535">
+    <p class="hint">⚠️ Port-Änderung erfordert Neustart der App.</p>
+  </div>
+
+  <!-- Scheduler -->
+  <div class="card">
+    <h2>Scheduler</h2>
+    <p style="font-size:12px;color:#adadb8;margin-bottom:10px;">
+      Automatisch einmal täglich Clips herunterladen.
+    </p>
+    <div class="schedule-row">
+      <input type="checkbox" id="schedule_enabled">
+      <label for="schedule_enabled">Aktiviert</label>
+    </div>
+    <div class="schedule-row" id="scheduleTimeRow" style="margin-top:12px;">
+      <label style="color:#adadb8;">Uhrzeit:</label>
+      <input type="number" id="schedule_hour" min="0" max="23" placeholder="3"> Uhr
+      <input type="number" id="schedule_minute" min="0" max="59" placeholder="0"> Min
+    </div>
+    <p class="hint" id="scheduleHint"></p>
+  </div>
+
+</div>
+
+<div class="btn-row">
+  <button class="btn-primary" id="btnSave" onclick="saveConfig()">💾 Speichern</button>
+  <button class="btn-secondary" id="btnFetch" onclick="triggerFetch()">▶ Jetzt abrufen</button>
+  <span class="toast" id="toast"></span>
+</div>
+
+<!-- Log -->
+<div class="log-card" style="margin-top:20px;">
+  <h2>📋 Letzte Logs</h2>
+  <div class="log-pre" id="logPre">Lade Logs...</div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  let polling = null;
+
+  // ── Load config on page load ─────────────────────────────────────────────
+  async function loadConfig() {
+    try {
+      const res = await fetch('/api/config');
+      const cfg = await res.json();
+
+      $('client_id').value      = cfg.client_id      || '';
+      $('client_secret').value  = cfg.client_secret  || '';
+      $('channel_name').value   = cfg.channel_name   || '';
+      $('days_back').value      = cfg.days_back       || 1095;
+      $('min_views').value      = cfg.min_views       || 300;
+      $('whitelist').value      = cfg.whitelist       || '';
+      $('blacklist').value      = cfg.blacklist       || '';
+      $('download_dir').value   = cfg.download_dir    || 'Twitch_Clips';
+      $('port').value           = cfg.port            || 42069;
+      $('schedule_enabled').checked = !!cfg.schedule_enabled;
+      $('schedule_hour').value   = cfg.schedule_hour   ?? 3;
+      $('schedule_minute').value = cfg.schedule_minute ?? 0;
+
+      const mode = cfg.download_mode || 'download';
+      document.querySelectorAll('input[name="download_mode"]').forEach(r => {
+        r.checked = r.value === mode;
+      });
+    } catch (e) {
+      showToast('Fehler beim Laden: ' + e.message, false);
+    }
+  }
+
+  // ── Save config ──────────────────────────────────────────────────────────
+  async function saveConfig() {
+    const mode = document.querySelector('input[name="download_mode"]:checked')?.value || 'download';
+    const cfg = {
+      client_id:        $('client_id').value.trim(),
+      client_secret:    $('client_secret').value.trim(),
+      channel_name:     $('channel_name').value.trim(),
+      days_back:        parseInt($('days_back').value)      || 1095,
+      min_views:        parseInt($('min_views').value)      || 300,
+      whitelist:        $('whitelist').value.trim(),
+      blacklist:        $('blacklist').value.trim(),
+      download_mode:    mode,
+      download_dir:     $('download_dir').value.trim() || 'Twitch_Clips',
+      port:             parseInt($('port').value)           || 42069,
+      schedule_enabled: $('schedule_enabled').checked,
+      schedule_hour:    parseInt($('schedule_hour').value)  || 0,
+      schedule_minute:  parseInt($('schedule_minute').value)|| 0,
+    };
+
+    $('btnSave').disabled = true;
+    try {
+      const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cfg),
+      });
+      if (res.ok) {
+        showToast('✅ Gespeichert', true);
+      } else {
+        const txt = await res.text();
+        showToast('❌ Fehler: ' + txt, false);
+      }
+    } catch (e) {
+      showToast('❌ ' + e.message, false);
+    } finally {
+      $('btnSave').disabled = false;
+    }
+  }
+
+  // ── Trigger manual fetch ─────────────────────────────────────────────────
+  async function triggerFetch() {
+    $('btnFetch').disabled = true;
+    $('btnFetch').textContent = '⏳ Läuft...';
+    try {
+      const res = await fetch('/api/fetch', { method: 'POST' });
+      if (res.status === 409) {
+        showToast('⚠️ Bereits am Laufen', false);
+        $('btnFetch').disabled = false;
+        $('btnFetch').textContent = '▶ Jetzt abrufen';
+        return;
+      }
+      startPolling();
+    } catch (e) {
+      showToast('❌ ' + e.message, false);
+      $('btnFetch').disabled = false;
+      $('btnFetch').textContent = '▶ Jetzt abrufen';
+    }
+  }
+
+  // ── Status polling ───────────────────────────────────────────────────────
+  function startPolling() {
+    if (polling) return;
+    polling = setInterval(refreshStatus, 1500);
+  }
+
+  function stopPolling() {
+    if (polling) { clearInterval(polling); polling = null; }
+  }
+
+  async function refreshStatus() {
+    try {
+      const res = await fetch('/api/status');
+      const st = await res.json();
+
+      // Badge
+      const badge = $('statusBadge');
+      if (st.running) {
+        badge.className = 'badge running';
+        badge.textContent = '⏳ Läuft...';
+        $('btnFetch').disabled = true;
+        $('btnFetch').textContent = '⏳ Läuft...';
+      } else {
+        if (st.last_error) {
+          badge.className = 'badge error';
+          badge.textContent = '❌ Fehler';
+        } else {
+          badge.className = 'badge idle';
+          badge.textContent = '● Bereit';
+        }
+        $('btnFetch').disabled = false;
+        $('btnFetch').textContent = '▶ Jetzt abrufen';
+        stopPolling();
+      }
+
+      // Last run
+      if (st.last_run && st.last_run !== '0001-01-01T00:00:00Z') {
+        const d = new Date(st.last_run);
+        $('lastRun').textContent = 'Letzter Run: ' + d.toLocaleString('de-DE');
+      }
+
+      // Logs
+      renderLogs(st.logs || []);
+    } catch (_) {}
+  }
+
+  function renderLogs(lines) {
+    const pre = $('logPre');
+    if (!lines.length) { pre.innerHTML = '<span style="color:#adadb8">Keine Logs vorhanden.</span>'; return; }
+    pre.innerHTML = lines.map(l => {
+      const esc = l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      if (/error|fehler|❌/i.test(l)) return `<span class="err">${esc}</span>`;
+      if (/warning|warn|⚠/i.test(l))  return `<span class="warn">${esc}</span>`;
+      if (/✅|done|fertig|erfolg/i.test(l)) return `<span class="ok">${esc}</span>`;
+      return esc;
+    }).join('\n');
+    pre.scrollTop = pre.scrollHeight;
+  }
+
+  // ── Toast ────────────────────────────────────────────────────────────────
+  function showToast(msg, ok) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast ' + (ok ? 'ok' : 'err');
+    setTimeout(() => { t.className = 'toast'; }, 3500);
+  }
+
+  // ── Auto-refresh logs every 3s ───────────────────────────────────────────
+  setInterval(refreshStatus, 3000);
+
+  // ── Init ─────────────────────────────────────────────────────────────────
+  loadConfig();
+  refreshStatus();
+</script>
+</body>
+</html>

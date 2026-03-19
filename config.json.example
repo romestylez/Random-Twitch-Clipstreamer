@@ -1,0 +1,15 @@
+{
+  "client_id": "DEIN_TWITCH_CLIENT_ID",
+  "client_secret": "DEIN_TWITCH_CLIENT_SECRET",
+  "channel_name": "kanalname",
+  "days_back": 1095,
+  "min_views": 300,
+  "whitelist": "",
+  "blacklist": "",
+  "schedule_enabled": false,
+  "schedule_hour": 8,
+  "schedule_minute": 0,
+  "download_mode": "download",
+  "port": 42069,
+  "download_dir": "Twitch_Clips"
+}

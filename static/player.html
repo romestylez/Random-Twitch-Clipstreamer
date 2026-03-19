@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Random Twitch Clip Player</title>
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    video {
+      width: 100%;
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+  <video id="clipPlayer" autoplay playsinline></video>
+
+  <script>
+    const defaultClipList = "clip_mp4_urls.json";
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const clipListUrl = urlParams.get("clips") || defaultClipList;
+
+    const player = document.getElementById("clipPlayer");
+
+    let clips = [];
+    let playedClips = {};   // Zyklus-History
+    let isPlaying = false;
+
+    // =========================
+    // History laden
+    // =========================
+    async function loadClipHistory() {
+      try {
+        const res = await fetch("get_lastplayed.php");
+        playedClips = await res.json();
+      } catch {
+        playedClips = {};
+      }
+    }
+
+    // =========================
+    // History speichern
+    // =========================
+    async function saveClipHistory() {
+      await fetch("save_lastplayed.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(playedClips),
+      });
+    }
+
+    // =========================
+    // eindeutige Clip-ID
+    // =========================
+    function getClipId(clip) {
+      return clip.url;
+    }
+
+    // =========================
+    // optional: Clip-Datum schreiben
+    // =========================
+    async function writeClipDate(dateStr) {
+      try {
+        await fetch("write_clipdate.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date: dateStr }),
+        });
+      } catch {
+        // egal
+      }
+    }
+
+    // =========================
+    // Nächsten Clip spielen (Zyklus-Logik)
+    // =========================
+    async function playNextClip() {
+      if (isPlaying) return;
+      isPlaying = true;
+
+      // nur Clips, die in diesem Zyklus NOCH NICHT gespielt wurden
+      const available = clips.filter(clip => {
+        const id = getClipId(clip);
+        return !playedClips[id];
+      });
+
+      // Zyklus komplett durch → Reset
+      if (available.length === 0) {
+        console.warn("🔁 Zyklus abgeschlossen – starte neuen Zyklus");
+
+        playedClips = {};
+        await saveClipHistory();
+
+        isPlaying = false;
+        return playNextClip();
+      }
+
+      // zufälliger Clip aus ungespielten
+      const clip = available[Math.floor(Math.random() * available.length)];
+      const id = getClipId(clip);
+
+      player.src = clip.url;
+      player.load();
+      await player.play();
+
+      if (clip.date) {
+        writeClipDate(clip.date);
+      }
+
+      // als gespielt markieren
+      playedClips[id] = true;
+      await saveClipHistory();
+
+      isPlaying = false;
+    }
+
+    // =========================
+    // Start
+    // =========================
+    async function start() {
+      const res = await fetch(clipListUrl);
+      clips = await res.json();
+
+      await loadClipHistory();
+      await playNextClip();
+
+      player.addEventListener("ended", () => {
+        playNextClip();
+      });
+    }
+
+    start();
+  </script>
+</body>
+</html>

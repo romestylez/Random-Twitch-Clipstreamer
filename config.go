@@ -1,0 +1,192 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+
+	"github.com/joho/godotenv"
+)
+
+const configFile = "config.json"
+
+// Config holds all application settings.
+type Config struct {
+	ClientID        string `json:"client_id"`
+	ClientSecret    string `json:"client_secret"`
+	ChannelName     string `json:"channel_name"`
+	DaysBack        int    `json:"days_back"`
+	MinViews        int    `json:"min_views"`
+	Whitelist       string `json:"whitelist"`
+	Blacklist       string `json:"blacklist"`
+	ScheduleEnabled bool   `json:"schedule_enabled"`
+	ScheduleHour    int    `json:"schedule_hour"`
+	ScheduleMinute  int    `json:"schedule_minute"`
+	DownloadMode    string `json:"download_mode"` // "download" or "local"
+	Port            int    `json:"port"`
+	DownloadDir     string `json:"download_dir"`
+}
+
+var (
+	globalConfig Config
+	configMu     sync.RWMutex
+)
+
+// LoadConfig reads config.json, falling back to .env for missing values.
+func LoadConfig() Config {
+	cfg := defaultConfig()
+
+	// Try config.json first
+	if data, err := os.ReadFile(configFile); err == nil {
+		var loaded Config
+		if json.Unmarshal(data, &loaded) == nil {
+			mergeConfig(&cfg, loaded)
+		}
+	}
+
+	// Fall back to .env for any empty required fields
+	_ = godotenv.Load(".env")
+	applyEnvFallback(&cfg)
+
+	configMu.Lock()
+	globalConfig = cfg
+	configMu.Unlock()
+
+	return cfg
+}
+
+// GetConfig returns a copy of the current config (thread-safe).
+func GetConfig() Config {
+	configMu.RLock()
+	defer configMu.RUnlock()
+	return globalConfig
+}
+
+// SaveConfig persists the config to config.json atomically and updates the global.
+func SaveConfig(cfg Config) error {
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	tmp := configFile + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		return fmt.Errorf("write temp config: %w", err)
+	}
+	if err := os.Rename(tmp, configFile); err != nil {
+		return fmt.Errorf("rename config: %w", err)
+	}
+
+	configMu.Lock()
+	globalConfig = cfg
+	configMu.Unlock()
+	return nil
+}
+
+func defaultConfig() Config {
+	return Config{
+		DaysBack:     1095,
+		MinViews:     300,
+		DownloadMode: "download",
+		Port:         42069,
+		DownloadDir:  "Twitch_Clips",
+	}
+}
+
+// mergeConfig copies non-zero fields from src into dst.
+func mergeConfig(dst *Config, src Config) {
+	if src.ClientID != "" {
+		dst.ClientID = src.ClientID
+	}
+	if src.ClientSecret != "" {
+		dst.ClientSecret = src.ClientSecret
+	}
+	if src.ChannelName != "" {
+		dst.ChannelName = src.ChannelName
+	}
+	if src.DaysBack != 0 {
+		dst.DaysBack = src.DaysBack
+	}
+	if src.MinViews != 0 {
+		dst.MinViews = src.MinViews
+	}
+	if src.Whitelist != "" {
+		dst.Whitelist = src.Whitelist
+	}
+	if src.Blacklist != "" {
+		dst.Blacklist = src.Blacklist
+	}
+	dst.ScheduleEnabled = src.ScheduleEnabled
+	dst.ScheduleHour = src.ScheduleHour
+	dst.ScheduleMinute = src.ScheduleMinute
+	if src.DownloadMode != "" {
+		dst.DownloadMode = src.DownloadMode
+	}
+	if src.Port != 0 {
+		dst.Port = src.Port
+	}
+	if src.DownloadDir != "" {
+		dst.DownloadDir = src.DownloadDir
+	}
+}
+
+func applyEnvFallback(cfg *Config) {
+	if cfg.ClientID == "" {
+		cfg.ClientID = os.Getenv("CLIENT_ID")
+	}
+	if cfg.ClientSecret == "" {
+		cfg.ClientSecret = os.Getenv("CLIENT_SECRET")
+	}
+	if cfg.ChannelName == "" {
+		cfg.ChannelName = os.Getenv("CHANNEL_NAME")
+	}
+	if cfg.DaysBack == 0 {
+		if v := envInt("DAYS_BACK", 0); v != 0 {
+			cfg.DaysBack = v
+		}
+	}
+	if cfg.MinViews == 0 {
+		if v := envInt("MIN_VIEWS", 0); v != 0 {
+			cfg.MinViews = v
+		}
+	}
+	if cfg.Whitelist == "" {
+		cfg.Whitelist = strings.TrimSpace(os.Getenv("WHITELIST"))
+	}
+	if cfg.Blacklist == "" {
+		cfg.Blacklist = strings.TrimSpace(os.Getenv("BLACKLIST"))
+	}
+}
+
+func envInt(key string, def int) int {
+	s := strings.TrimSpace(os.Getenv(key))
+	if s == "" {
+		return def
+	}
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return def
+	}
+	return v
+}
+
+// OutputFile returns the JSON output filename for a given channel.
+func (c Config) OutputFile() string {
+	if c.ChannelName != "" {
+		return c.ChannelName + "_mp4_urls.json"
+	}
+	return "mp4_urls.json"
+}
+
+// BinaryDir returns the directory of the running executable.
+func BinaryDir() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "."
+	}
+	return filepath.Dir(exe)
+}
