@@ -1,0 +1,9 @@
+services:
+  clipstreamer:
+    image: ghcr.io/romestylez/random-twitch-clipstreamer:latest
+    ports:
+      - "42069:42069"
+    volumes:
+      # Persistent data: config.json, downloaded clips, log file
+      - ./data:/data
+    restart: unless-stopped

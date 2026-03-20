@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -236,7 +237,10 @@ func resolveYtDlp() (string, error) {
 		}
 	}
 
-	// 3. Auto-download yt-dlp.exe next to binary
+	// 3. Auto-download yt-dlp.exe next to binary (Windows only)
+	if runtime.GOOS != "windows" {
+		return "", fmt.Errorf("yt-dlp not found in PATH — install it with your package manager (e.g. apk add yt-dlp)")
+	}
 	dest := filepath.Join(binDir, "yt-dlp.exe")
 	log.Printf("📥 yt-dlp not found — downloading from GitHub to %s ...", dest)
 	if err := downloadFile(dest, ytdlpURL); err != nil {
