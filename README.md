@@ -120,6 +120,104 @@ Erreichbar unter `http://localhost:42069/admin`:
 - Manuellen Clip-Fetch starten
 - Fetch-Status & Logs einsehen
 
+## 🐳 Docker
+
+Die einfachste Möglichkeit, den Clipstreamer zu betreiben – kein Go, kein yt-dlp, kein ffmpeg manuell installieren. Alles ist im Image enthalten.
+
+### Voraussetzungen
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/macOS) oder Docker + Docker Compose (Linux)
+
+### Schnellstart
+
+1. Einen neuen Ordner anlegen, z. B. `clipstreamer`
+2. Darin eine Datei `docker-compose.yml` erstellen mit folgendem Inhalt:
+
+```yaml
+services:
+  clipstreamer:
+    image: ghcr.io/romestylez/random-twitch-clipstreamer:latest
+    ports:
+      - "42069:42069"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+```
+
+3. Container starten:
+
+```bash
+docker compose up -d
+```
+
+Docker lädt das Image automatisch herunter – kein manuelles Bauen nötig.
+
+- **Player:** `http://localhost:42069/`
+- **Admin-UI:** `http://localhost:42069/admin`
+
+### Konfiguration
+
+Beim ersten Start ist noch keine `config.json` vorhanden. Einfach die Admin-UI unter `http://localhost:42069/admin` öffnen, dort alle Felder ausfüllen und speichern – die Datei wird automatisch unter `./data/config.json` angelegt.
+
+Alternativ kann die Konfiguration manuell angelegt werden:
+
+```bash
+# data-Ordner anlegen
+mkdir data
+
+# config.json.example als Vorlage kopieren und anpassen
+cp config.json.example data/config.json
+```
+
+Alle persistenten Daten (Konfiguration, heruntergeladene Clips, Logs) landen im `./data`-Ordner neben der `docker-compose.yml`.
+
+### Daten & Volumes
+
+| Pfad im Container | Inhalt |
+|---|---|
+| `/data/config.json` | Konfigurationsdatei |
+| `/data/Twitch_Clips/` | Heruntergeladene `.mp4`-Dateien |
+| `/data/clipstreamer.log` | Logdatei |
+| `/data/*.json` | Clip-Listen, History |
+
+### Nützliche Befehle
+
+```bash
+# Container starten
+docker compose up -d
+
+# Logs live ansehen
+docker compose logs -f
+
+# Container stoppen
+docker compose down
+
+# Image auf neueste Version aktualisieren
+docker compose pull
+docker compose up -d
+```
+
+### Image manuell bauen
+
+Wer das Image lieber selbst bauen möchte, einfach `image:` in der `docker-compose.yml` durch `build: .` ersetzen (Dockerfile liegt im Repo):
+
+```yaml
+services:
+  clipstreamer:
+    build: .
+    ports:
+      - "42069:42069"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+```
+
+```bash
+docker compose up -d --build
+```
+
+---
+
 ## 🔨 Selbst bauen
 
 ```bash
