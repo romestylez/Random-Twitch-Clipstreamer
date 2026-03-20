@@ -126,12 +126,32 @@ Die einfachste Möglichkeit, den Clipstreamer zu betreiben – kein Go, kein yt-
 
 ### Voraussetzungen
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/macOS) oder Docker + Docker Compose (Linux)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/macOS) oder Docker (Linux)
 
 ### Schnellstart
 
-1. Einen neuen Ordner anlegen, z. B. `clipstreamer`
-2. Darin eine Datei `docker-compose.yml` erstellen mit folgendem Inhalt:
+Einen einzigen Befehl ausführen – Docker lädt das Image automatisch herunter:
+
+```bash
+docker run -d \
+  -p 42069:42069 \
+  -v ./data:/data \
+  --restart unless-stopped \
+  ghcr.io/romestylez/random-twitch-clipstreamer:latest
+```
+
+- **Player:** `http://localhost:42069/`
+- **Admin-UI:** `http://localhost:42069/admin`
+
+### Konfiguration
+
+Beim ersten Start ist noch keine `config.json` vorhanden. Einfach die Admin-UI unter `http://localhost:42069/admin` öffnen, dort alle Felder ausfüllen und speichern – die Datei wird automatisch unter `./data/config.json` angelegt.
+
+Alle persistenten Daten (Konfiguration, heruntergeladene Clips, Logs) landen im `./data`-Ordner.
+
+### Optional: docker-compose
+
+Wer lieber mit `docker-compose` arbeitet, eine `docker-compose.yml` anlegen:
 
 ```yaml
 services:
@@ -144,32 +164,9 @@ services:
     restart: unless-stopped
 ```
 
-3. Container starten:
-
 ```bash
 docker compose up -d
 ```
-
-Docker lädt das Image automatisch herunter – kein manuelles Bauen nötig.
-
-- **Player:** `http://localhost:42069/`
-- **Admin-UI:** `http://localhost:42069/admin`
-
-### Konfiguration
-
-Beim ersten Start ist noch keine `config.json` vorhanden. Einfach die Admin-UI unter `http://localhost:42069/admin` öffnen, dort alle Felder ausfüllen und speichern – die Datei wird automatisch unter `./data/config.json` angelegt.
-
-Alternativ kann die Konfiguration manuell angelegt werden:
-
-```bash
-# data-Ordner anlegen
-mkdir data
-
-# config.json.example als Vorlage kopieren und anpassen
-cp config.json.example data/config.json
-```
-
-Alle persistenten Daten (Konfiguration, heruntergeladene Clips, Logs) landen im `./data`-Ordner neben der `docker-compose.yml`.
 
 ### Daten & Volumes
 
