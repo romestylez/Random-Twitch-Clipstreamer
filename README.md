@@ -130,5 +130,6 @@ go build -o twitch-clipstreamer .
 Voraussetzung: [Go 1.21+](https://go.dev/dl/)
 
 ## 📜 Lizenz
+Dieses Projekt darf frei verwendet, verändert und weitergegeben werden.
 
-Mach was du willst aber gönn Credits an mich
+Voraussetzung ist, dass ein Verweis auf dieses Repository (z. B. durch einen Link) erfolgt.
