@@ -29,7 +29,7 @@ Sammelt Twitch-Clips nach Zeitraum & Mindest-Views, extrahiert `.mp4`-Links **od
 
 ## ⚙️ Installation & Konfiguration
 
-1. Binary aus dem [Releases-Bereich](../../releases) herunterladen oder selbst bauen (siehe unten).
+1. Binary aus dem [Releases-Bereich](../../releases) herunterladen, Docker nutzen oder selbst bauen (siehe unten).
 2. `config.json.example` nach `config.json` kopieren und anpassen:
 
 ```json
