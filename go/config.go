@@ -40,11 +40,19 @@ var (
 func LoadConfig() Config {
 	cfg := defaultConfig()
 
-	// Try config.json first
+	// Try config.json first.
+	// We decode twice: once into a raw map to know which keys are actually
+	// present in the file (so 0 can be distinguished from "key absent"),
+	// and once into the typed Config struct.
 	if data, err := os.ReadFile(configFile); err == nil {
 		var loaded Config
-		if json.Unmarshal(data, &loaded) == nil {
-			mergeConfig(&cfg, loaded)
+		var raw map[string]json.RawMessage
+		if json.Unmarshal(data, &loaded) == nil && json.Unmarshal(data, &raw) == nil {
+			fileKeys := make(map[string]bool, len(raw))
+			for k := range raw {
+				fileKeys[k] = true
+			}
+			mergeConfig(&cfg, loaded, fileKeys)
 		}
 	}
 
@@ -97,8 +105,12 @@ func defaultConfig() Config {
 	}
 }
 
-// mergeConfig copies non-zero fields from src into dst.
-func mergeConfig(dst *Config, src Config) {
+// mergeConfig copies fields from src into dst.
+// String fields: only overridden when non-empty (so old config files without a
+// field keep the default).  Numeric/bool fields from the file are always
+// applied — 0 is a valid user choice (e.g. no minimum-view filter) and must
+// not silently revert to the compiled default on the next restart.
+func mergeConfig(dst *Config, src Config, fileKeys map[string]bool) {
 	if src.ClientID != "" {
 		dst.ClientID = src.ClientID
 	}
@@ -108,10 +120,10 @@ func mergeConfig(dst *Config, src Config) {
 	if src.ChannelName != "" {
 		dst.ChannelName = src.ChannelName
 	}
-	if src.DaysBack != 0 {
+	if fileKeys["days_back"] {
 		dst.DaysBack = src.DaysBack
 	}
-	if src.MinViews != 0 {
+	if fileKeys["min_views"] {
 		dst.MinViews = src.MinViews
 	}
 	if src.Whitelist != "" {
@@ -126,7 +138,7 @@ func mergeConfig(dst *Config, src Config) {
 	if src.DownloadMode != "" {
 		dst.DownloadMode = src.DownloadMode
 	}
-	if src.Port != 0 {
+	if fileKeys["port"] {
 		dst.Port = src.Port
 	}
 	if src.DownloadDir != "" {
