@@ -44,7 +44,7 @@ func commonSetup() (logger *log.Logger, ring *LogRing, srv *Server, sched *Sched
 			logger.Println("⚠️  Fetch already running, skipping.")
 			return
 		}
-		c := GetConfig()
+		c := LoadConfig() // always re-read from disk so direct file edits are honoured
 		err := FetchAndWrite(c, logger)
 		errStr := ""
 		if err != nil {

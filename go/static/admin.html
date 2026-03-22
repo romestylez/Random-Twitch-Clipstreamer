@@ -288,7 +288,7 @@
       $('client_secret').value  = cfg.client_secret  || '';
       $('channel_name').value   = cfg.channel_name   || '';
       $('days_back').value      = cfg.days_back       || 1095;
-      $('min_views').value      = cfg.min_views       || 300;
+      $('min_views').value      = cfg.min_views        ?? 300;
       $('whitelist').value      = cfg.whitelist       || '';
       $('blacklist').value      = cfg.blacklist       || '';
       $('download_dir').value   = cfg.download_dir    || 'Twitch_Clips';

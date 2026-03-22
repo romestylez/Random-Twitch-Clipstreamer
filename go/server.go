@@ -244,7 +244,7 @@ func (s *Server) handleFetch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	go func() {
-		cfg := GetConfig()
+		cfg := LoadConfig() // always re-read from disk so direct file edits are honoured
 		err := FetchAndWrite(cfg, s.logger)
 		errStr := ""
 		if err != nil {
