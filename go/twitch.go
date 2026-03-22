@@ -119,13 +119,12 @@ func GetClips(broadcasterID, clientID, token string, startedAt, endedAt time.Tim
 
 		var page struct {
 			Data []struct {
-				ID         string    `json:"id"`
-				URL        string    `json:"url"`
-				CreatedAt  time.Time `json:"created_at"`
-				ViewCount  int       `json:"view_count"`
-				GameID     string    `json:"game_id"`
-				Title      string    `json:"title"`
-				GameName   string    `json:"game_name"`
+				ID        string    `json:"id"`
+				URL       string    `json:"url"`
+				CreatedAt time.Time `json:"created_at"`
+				ViewCount int       `json:"view_count"`
+				GameID    string    `json:"game_id"`
+				Title     string    `json:"title"`
 			} `json:"data"`
 			Pagination struct {
 				Cursor string `json:"cursor"`
@@ -139,9 +138,6 @@ func GetClips(broadcasterID, clientID, token string, startedAt, endedAt time.Tim
 
 		for _, d := range page.Data {
 			if d.ViewCount < minViews {
-				continue
-			}
-			if !matchesCategory(d.GameName, whitelist, blacklist) {
 				continue
 			}
 			clips = append(clips, Clip{
@@ -160,7 +156,85 @@ func GetClips(broadcasterID, clientID, token string, startedAt, endedAt time.Tim
 		}
 	}
 
+	// Apply whitelist/blacklist only when needed.
+	// The clips API does not return game_name, so we resolve game_ids first.
+	if len(whitelist) > 0 || len(blacklist) > 0 {
+		gameNames, err := resolveGameNames(clips, clientID, token)
+		if err != nil {
+			return nil, fmt.Errorf("resolve game names: %w", err)
+		}
+		filtered := clips[:0]
+		for _, c := range clips {
+			if matchesCategory(gameNames[c.GameID], whitelist, blacklist) {
+				filtered = append(filtered, c)
+			}
+		}
+		clips = filtered
+	}
+
 	return clips, nil
+}
+
+// resolveGameNames calls /helix/games for all unique game_ids found in clips
+// and returns a map[gameID]gameName.
+func resolveGameNames(clips []Clip, clientID, token string) (map[string]string, error) {
+	seen := make(map[string]bool)
+	var ids []string
+	for _, c := range clips {
+		if c.GameID != "" && !seen[c.GameID] {
+			seen[c.GameID] = true
+			ids = append(ids, c.GameID)
+		}
+	}
+	if len(ids) == 0 {
+		return map[string]string{}, nil
+	}
+
+	result := make(map[string]string, len(ids))
+	for len(ids) > 0 {
+		batch := ids
+		if len(batch) > 100 {
+			batch, ids = ids[:100], ids[100:]
+		} else {
+			ids = nil
+		}
+
+		params := url.Values{}
+		for _, id := range batch {
+			params.Add("id", id)
+		}
+		req, _ := http.NewRequest("GET", "https://api.twitch.tv/helix/games?"+params.Encode(), nil)
+		req.Header.Set("Client-ID", clientID)
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("get games: %w", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return nil, fmt.Errorf("games status %d: %s", resp.StatusCode, body)
+		}
+
+		var page struct {
+			Data []struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+			resp.Body.Close()
+			return nil, fmt.Errorf("decode games: %w", err)
+		}
+		resp.Body.Close()
+
+		for _, g := range page.Data {
+			result[g.ID] = g.Name
+		}
+	}
+	return result, nil
 }
 
 // matchesCategory returns true if the gameName passes whitelist/blacklist filters.
