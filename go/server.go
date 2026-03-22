@@ -190,6 +190,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	switch r.Method {
 	case http.MethodGet:
+		w.Header().Set("Cache-Control", "no-store")
 		json.NewEncoder(w).Encode(GetConfig())
 
 	case http.MethodPost:
@@ -197,6 +198,14 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
 			http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
 			return
+		}
+		// Preserve existing sensitive values if the browser cleared the password fields.
+		current := GetConfig()
+		if cfg.ClientID == "" {
+			cfg.ClientID = current.ClientID
+		}
+		if cfg.ClientSecret == "" {
+			cfg.ClientSecret = current.ClientSecret
 		}
 		// Enforce sane defaults for zero values
 		if cfg.Port == 0 {

@@ -314,7 +314,7 @@
       client_secret:    $('client_secret').value.trim(),
       channel_name:     $('channel_name').value.trim(),
       days_back:        parseInt($('days_back').value)      || 1095,
-      min_views:        parseInt($('min_views').value)      || 300,
+      min_views:        parseInt($('min_views').value)      || 0,
       whitelist:        $('whitelist').value.trim(),
       blacklist:        $('blacklist').value.trim(),
       download_mode:    mode,
@@ -334,6 +334,7 @@
       });
       if (res.ok) {
         showToast('✅ Gespeichert', true);
+        await loadConfig(); // Formular mit bestätigten Werten neu laden
       } else {
         const txt = await res.text();
         showToast('❌ Fehler: ' + txt, false);
