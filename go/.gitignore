@@ -1,0 +1,11 @@
+# compiled binaries
+twitch-clipstreamer
+clipstreamer
+
+# config with secrets
+config.json
+.env
+
+# data directory
+Twitch_Clips/
+*.log
