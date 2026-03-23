@@ -112,6 +112,7 @@ func runDownloadMode(cfg Config, clips []Clip, ytdlp string, logger *log.Logger)
 			"--ignore-errors",
 			clip.URL,
 		)
+		hideWindow(cmd)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			logger.Printf("⚠️  Failed to download %s: %v\n%s", slug, err, out)
@@ -187,6 +188,7 @@ func runLocalMode(cfg Config, clips []Clip, ytdlp string, logger *log.Logger) ([
 
 			logger.Printf("🔍 Extracting MP4 URL for: %s", clip.ID)
 			cmd := exec.Command(ytdlp, "--print", "url", "--no-warnings", clip.URL)
+			hideWindow(cmd)
 			out, err := cmd.Output()
 			if err != nil {
 				logger.Printf("⚠️  %s failed: %v", clip.ID, err)
