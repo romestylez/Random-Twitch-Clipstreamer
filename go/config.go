@@ -26,9 +26,10 @@ type Config struct {
 	ScheduleEnabled bool   `json:"schedule_enabled"`
 	ScheduleHour    int    `json:"schedule_hour"`
 	ScheduleMinute  int    `json:"schedule_minute"`
-	DownloadMode    string `json:"download_mode"` // "download" or "local"
-	Port            int    `json:"port"`
-	DownloadDir     string `json:"download_dir"`
+	DownloadMode      string `json:"download_mode"` // "download" or "local"
+	Port              int    `json:"port"`
+	DownloadDir       string `json:"download_dir"`
+	ClipPauseSeconds  float64 `json:"clip_pause_seconds"`
 }
 
 var (
@@ -143,6 +144,9 @@ func mergeConfig(dst *Config, src Config, fileKeys map[string]bool) {
 	}
 	if src.DownloadDir != "" {
 		dst.DownloadDir = src.DownloadDir
+	}
+	if fileKeys["clip_pause_seconds"] {
+		dst.ClipPauseSeconds = src.ClipPauseSeconds
 	}
 }
 
