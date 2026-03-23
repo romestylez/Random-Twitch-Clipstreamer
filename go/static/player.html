@@ -32,6 +32,7 @@
     let clips = [];
     let playedClips = {};   // Zyklus-History
     let isPlaying = false;
+    let pauseSeconds = 0;
 
     // =========================
     // History laden
@@ -125,6 +126,14 @@
     // Start
     // =========================
     async function start() {
+      try {
+        const cfgRes = await fetch("/api/config");
+        const cfg = await cfgRes.json();
+        pauseSeconds = parseFloat(cfg.clip_pause_seconds) || 0;
+      } catch {
+        pauseSeconds = 0;
+      }
+
       const res = await fetch(clipListUrl);
       clips = await res.json();
 
@@ -132,7 +141,11 @@
       await playNextClip();
 
       player.addEventListener("ended", () => {
-        playNextClip();
+        if (pauseSeconds > 0) {
+          setTimeout(playNextClip, pauseSeconds * 1000);
+        } else {
+          playNextClip();
+        }
       });
     }
 
