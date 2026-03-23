@@ -71,6 +71,9 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 		mux.HandleFunc(p, s.handleWriteClipDate)
 	}
 
+	// Canonical clip list alias: player.html always fetches /clip_mp4_urls.json
+	mux.HandleFunc("/clip_mp4_urls.json", s.handleClipList)
+
 	// Admin API
 	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/fetch", s.handleFetch)
@@ -274,6 +277,13 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// handleClipList serves the channel's clip JSON under the fixed path
+// /clip_mp4_urls.json that player.html expects by default.
+func (s *Server) handleClipList(w http.ResponseWriter, r *http.Request) {
+	cfg := GetConfig()
+	http.ServeFile(w, r, cfg.OutputFile())
 }
 
 // atomicWriteFile writes data to path using a temp-file + rename pattern.
