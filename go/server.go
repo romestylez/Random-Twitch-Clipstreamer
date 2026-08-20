@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -76,7 +80,9 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 
 	// Admin API
 	mux.HandleFunc("/api/config", s.handleConfig)
+	mux.HandleFunc("/api/clip-lists", s.handleClipLists)
 	mux.HandleFunc("/api/fetch", s.handleFetch)
+	mux.HandleFunc("/api/fetch/cancel", s.handleCancelFetch)
 	mux.HandleFunc("/api/status", s.handleStatus)
 
 	// catch-all: serve clip_date.html and *_mp4_urls.json from working dir,
@@ -237,28 +243,65 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) handleClipLists(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	files, _ := filepath.Glob("*_mp4_urls.json")
+	for i := range files {
+		files[i] = filepath.Base(files[i])
+	}
+	sort.Strings(files)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	json.NewEncoder(w).Encode(map[string]any{
+		"files":  files,
+		"active": GetConfig().ActiveClipFile(),
+	})
+}
+
 func (s *Server) handleFetch(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !s.state.TryStart() {
+	ctx, started := s.state.TryStart()
+	if !started {
 		http.Error(w, "Fetch already running", http.StatusConflict)
 		return
 	}
 	go func() {
 		cfg := LoadConfig() // always re-read from disk so direct file edits are honoured
-		err := FetchAndWrite(cfg, s.logger)
+		err := FetchAndWrite(ctx, cfg, s.logger)
 		errStr := ""
-		if err != nil {
+		if errors.Is(err, context.Canceled) {
+			s.logger.Println("⏹️ Fetch cancelled.")
+		} else if err != nil {
 			errStr = err.Error()
 			s.logger.Printf("❌ Fetch error: %v", err)
 		}
 		s.state.Finish(errStr)
 	}()
-	w.WriteHeader(http.StatusAccepted)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(map[string]string{"status": "started"})
+}
+
+func (s *Server) handleCancelFetch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.state.Cancel() {
+		http.Error(w, "No fetch is running", http.StatusConflict)
+		return
+	}
+	s.logger.Println("⏹️ Cancellation requested by admin.")
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "cancelling"})
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -283,7 +326,10 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 // /clip_mp4_urls.json that player.html expects by default.
 func (s *Server) handleClipList(w http.ResponseWriter, r *http.Request) {
 	cfg := GetConfig()
-	http.ServeFile(w, r, cfg.OutputFile())
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+	http.ServeFile(w, r, cfg.ActiveClipFile())
 }
 
 // atomicWriteFile writes data to path using a temp-file + rename pattern.

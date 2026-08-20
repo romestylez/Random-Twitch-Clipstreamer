@@ -16,20 +16,21 @@ const configFile = "config.json"
 
 // Config holds all application settings.
 type Config struct {
-	ClientID        string `json:"client_id"`
-	ClientSecret    string `json:"client_secret"`
-	ChannelName     string `json:"channel_name"`
-	DaysBack        int    `json:"days_back"`
-	MinViews        int    `json:"min_views"`
-	Whitelist       string `json:"whitelist"`
-	Blacklist       string `json:"blacklist"`
-	ScheduleEnabled bool   `json:"schedule_enabled"`
-	ScheduleHour    int    `json:"schedule_hour"`
-	ScheduleMinute  int    `json:"schedule_minute"`
-	DownloadMode      string `json:"download_mode"` // "download" or "local"
-	Port              int    `json:"port"`
-	DownloadDir       string `json:"download_dir"`
-	ClipPauseSeconds  float64 `json:"clip_pause_seconds"`
+	ClientID         string  `json:"client_id"`
+	ClientSecret     string  `json:"client_secret"`
+	ChannelName      string  `json:"channel_name"`
+	DaysBack         int     `json:"days_back"`
+	MinViews         int     `json:"min_views"`
+	Whitelist        string  `json:"whitelist"`
+	Blacklist        string  `json:"blacklist"`
+	ScheduleEnabled  bool    `json:"schedule_enabled"`
+	ScheduleHour     int     `json:"schedule_hour"`
+	ScheduleMinute   int     `json:"schedule_minute"`
+	DownloadMode     string  `json:"download_mode"` // "download" or "local"
+	Port             int     `json:"port"`
+	DownloadDir      string  `json:"download_dir"`
+	ClipPauseSeconds float64 `json:"clip_pause_seconds"`
+	PlayerClipFile   string  `json:"player_clip_file"`
 }
 
 var (
@@ -148,6 +149,9 @@ func mergeConfig(dst *Config, src Config, fileKeys map[string]bool) {
 	if fileKeys["clip_pause_seconds"] {
 		dst.ClipPauseSeconds = src.ClipPauseSeconds
 	}
+	if fileKeys["player_clip_file"] {
+		dst.PlayerClipFile = src.PlayerClipFile
+	}
 }
 
 func applyEnvFallback(cfg *Config) {
@@ -196,6 +200,28 @@ func (c Config) OutputFile() string {
 		return c.ChannelName + "_mp4_urls.json"
 	}
 	return "mp4_urls.json"
+}
+
+// ActiveClipFile returns the clip list selected for the player. An empty or
+// unsafe selection falls back to the output file for the configured channel.
+func (c Config) ActiveClipFile() string {
+	selected := strings.TrimSpace(c.PlayerClipFile)
+	if selected != "" && filepath.Base(selected) == selected && strings.HasSuffix(selected, "_mp4_urls.json") {
+		return selected
+	}
+	return c.OutputFile()
+}
+
+// ActivateFetchedClipFile selects a successfully generated channel output.
+// Re-read the config first so changes made while a long fetch was running are
+// not overwritten. If the channel has changed again, leave its selection alone.
+func ActivateFetchedClipFile(fetched Config) error {
+	current := LoadConfig()
+	if current.ChannelName != fetched.ChannelName {
+		return nil
+	}
+	current.PlayerClipFile = fetched.OutputFile()
+	return SaveConfig(current)
 }
 
 // BinaryDir returns the directory of the running executable.

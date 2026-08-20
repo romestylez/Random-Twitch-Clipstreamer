@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,7 +17,7 @@ import (
 )
 
 const (
-	ytdlpURL        = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+	ytdlpURL         = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
 	concurrencyLimit = 5
 )
 
@@ -28,20 +29,20 @@ type ClipEntry struct {
 
 // FetchAndWrite is the main orchestration function: fetches clips from Twitch,
 // downloads or extracts URLs, cleans up obsolete files, and writes the output JSON.
-func FetchAndWrite(cfg Config, logger *log.Logger) error {
-	ytdlp, err := resolveYtDlp()
+func FetchAndWrite(ctx context.Context, cfg Config, logger *log.Logger) error {
+	ytdlp, err := resolveYtDlp(ctx)
 	if err != nil {
 		return fmt.Errorf("yt-dlp not available: %w", err)
 	}
 
 	logger.Println("🔑 Getting OAuth token...")
-	token, err := GetOAuthToken(cfg.ClientID, cfg.ClientSecret)
+	token, err := GetOAuthToken(ctx, cfg.ClientID, cfg.ClientSecret)
 	if err != nil {
 		return fmt.Errorf("oauth: %w", err)
 	}
 
 	logger.Printf("👤 Getting user ID for %s...", cfg.ChannelName)
-	userID, err := GetUserID(cfg.ChannelName, cfg.ClientID, token)
+	userID, err := GetUserID(ctx, cfg.ChannelName, cfg.ClientID, token)
 	if err != nil {
 		return fmt.Errorf("user id: %w", err)
 	}
@@ -50,7 +51,7 @@ func FetchAndWrite(cfg Config, logger *log.Logger) error {
 	startedAt := now.AddDate(0, 0, -cfg.DaysBack)
 
 	logger.Printf("🎯 Fetching clips from the last %d days (min views: %d)...", cfg.DaysBack, cfg.MinViews)
-	clips, err := GetClips(userID, cfg.ClientID, token, startedAt, now,
+	clips, err := GetClips(ctx, userID, cfg.ClientID, token, startedAt, now,
 		cfg.MinViews,
 		splitCategories(cfg.Whitelist),
 		splitCategories(cfg.Blacklist),
@@ -63,9 +64,9 @@ func FetchAndWrite(cfg Config, logger *log.Logger) error {
 	var entries []ClipEntry
 
 	if cfg.DownloadMode == "local" {
-		entries, err = runLocalMode(cfg, clips, ytdlp, logger)
+		entries, err = runLocalMode(ctx, cfg, clips, ytdlp, logger)
 	} else {
-		entries, err = runDownloadMode(cfg, clips, ytdlp, logger)
+		entries, err = runDownloadMode(ctx, cfg, clips, ytdlp, logger)
 	}
 	if err != nil {
 		return err
@@ -76,13 +77,16 @@ func FetchAndWrite(cfg Config, logger *log.Logger) error {
 	if err := writeJSON(outFile, entries); err != nil {
 		return fmt.Errorf("write output: %w", err)
 	}
+	if err := ActivateFetchedClipFile(cfg); err != nil {
+		return fmt.Errorf("activate output: %w", err)
+	}
 
-	logger.Printf("✅ Done. %d clips listed.", len(entries))
+	logger.Printf("✅ Done. %d clips listed; player now uses %s.", len(entries), outFile)
 	return nil
 }
 
 // runDownloadMode downloads clips via yt-dlp and cleans up obsolete files.
-func runDownloadMode(cfg Config, clips []Clip, ytdlp string, logger *log.Logger) ([]ClipEntry, error) {
+func runDownloadMode(ctx context.Context, cfg Config, clips []Clip, ytdlp string, logger *log.Logger) ([]ClipEntry, error) {
 	if err := os.MkdirAll(cfg.DownloadDir, 0755); err != nil {
 		return nil, fmt.Errorf("create download dir: %w", err)
 	}
@@ -91,6 +95,9 @@ func runDownloadMode(cfg Config, clips []Clip, ytdlp string, logger *log.Logger)
 	var downloaded []string
 
 	for _, clip := range clips {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		slug := clip.ID
 		plannedSlugs[slug] = true
 		dateStr := clip.CreatedAt.Format("20060102")
@@ -104,7 +111,7 @@ func runDownloadMode(cfg Config, clips []Clip, ytdlp string, logger *log.Logger)
 		}
 
 		logger.Printf("⬇️  Downloading: %s", slug)
-		cmd := exec.Command(ytdlp,
+		cmd := exec.CommandContext(ctx, ytdlp,
 			"--paths", cfg.DownloadDir,
 			"-o", filename,
 			"--no-warnings",
@@ -123,6 +130,9 @@ func runDownloadMode(cfg Config, clips []Clip, ytdlp string, logger *log.Logger)
 		} else {
 			logger.Printf("⚠️  Could not confirm download of: %s", slug)
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	// Cleanup obsolete files
@@ -168,7 +178,7 @@ func runDownloadMode(cfg Config, clips []Clip, ytdlp string, logger *log.Logger)
 }
 
 // runLocalMode extracts direct MP4 URLs using yt-dlp --print url (no download).
-func runLocalMode(cfg Config, clips []Clip, ytdlp string, logger *log.Logger) ([]ClipEntry, error) {
+func runLocalMode(ctx context.Context, cfg Config, clips []Clip, ytdlp string, logger *log.Logger) ([]ClipEntry, error) {
 	type result struct {
 		entry ClipEntry
 		ok    bool
@@ -183,11 +193,15 @@ func runLocalMode(cfg Config, clips []Clip, ytdlp string, logger *log.Logger) ([
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			sem <- struct{}{}
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
 			defer func() { <-sem }()
 
 			logger.Printf("🔍 Extracting MP4 URL for: %s", clip.ID)
-			cmd := exec.Command(ytdlp, "--print", "url", "--no-warnings", clip.URL)
+			cmd := exec.CommandContext(ctx, ytdlp, "--print", "url", "--no-warnings", clip.URL)
 			hideWindow(cmd)
 			out, err := cmd.Output()
 			if err != nil {
@@ -209,6 +223,9 @@ func runLocalMode(cfg Config, clips []Clip, ytdlp string, logger *log.Logger) ([
 		}()
 	}
 	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	var entries []ClipEntry
 	for _, r := range results {
@@ -221,7 +238,7 @@ func runLocalMode(cfg Config, clips []Clip, ytdlp string, logger *log.Logger) ([
 
 // resolveYtDlp finds yt-dlp in PATH or next to the binary,
 // downloading it automatically if not found (Windows only).
-func resolveYtDlp() (string, error) {
+func resolveYtDlp(ctx context.Context) (string, error) {
 	// 1. Check PATH
 	if p, err := exec.LookPath("yt-dlp"); err == nil {
 		return p, nil
@@ -245,7 +262,7 @@ func resolveYtDlp() (string, error) {
 	}
 	dest := filepath.Join(binDir, "yt-dlp.exe")
 	log.Printf("📥 yt-dlp not found — downloading from GitHub to %s ...", dest)
-	if err := downloadFile(dest, ytdlpURL); err != nil {
+	if err := downloadFile(ctx, dest, ytdlpURL); err != nil {
 		return "", fmt.Errorf("auto-download yt-dlp: %w", err)
 	}
 	log.Printf("✅ yt-dlp downloaded successfully.")
@@ -253,8 +270,12 @@ func resolveYtDlp() (string, error) {
 }
 
 // downloadFile downloads url to dest, showing basic progress.
-func downloadFile(dest, srcURL string) error {
-	resp, err := http.Get(srcURL)
+func downloadFile(ctx context.Context, dest, srcURL string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srcURL, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
