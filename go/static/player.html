@@ -34,6 +34,18 @@
     let isPlaying = false;
     let pauseSeconds = 0;
 
+    async function refreshClips() {
+      const res = await fetch(clipListUrl, { cache: "no-store" });
+      if (!res.ok) {
+        throw new Error(`Clip-Liste konnte nicht geladen werden (HTTP ${res.status})`);
+      }
+      const nextClips = await res.json();
+      if (!Array.isArray(nextClips)) {
+        throw new Error("Clip-Liste hat kein gültiges Array-Format");
+      }
+      clips = nextClips;
+    }
+
     // =========================
     // History laden
     // =========================
@@ -86,6 +98,24 @@
       if (isPlaying) return;
       isPlaying = true;
 
+      try {
+        // Reload before every clip so an Admin selection takes effect without
+        // restarting an OBS browser source.
+        await refreshClips();
+      } catch (err) {
+        console.error(err);
+        isPlaying = false;
+        setTimeout(playNextClip, 5000);
+        return;
+      }
+
+      if (clips.length === 0) {
+        console.warn("Keine Clips in der ausgewählten Liste – neuer Versuch in 5 Sekunden");
+        isPlaying = false;
+        setTimeout(playNextClip, 5000);
+        return;
+      }
+
       // nur Clips, die in diesem Zyklus NOCH NICHT gespielt wurden
       const available = clips.filter(clip => {
         const id = getClipId(clip);
@@ -133,9 +163,6 @@
       } catch {
         pauseSeconds = 0;
       }
-
-      const res = await fetch(clipListUrl);
-      clips = await res.json();
 
       await loadClipHistory();
       await playNextClip();
