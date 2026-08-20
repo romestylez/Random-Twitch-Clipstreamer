@@ -46,7 +46,8 @@ Sammelt Twitch-Clips nach Zeitraum & Mindest-Views, extrahiert `.mp4`-Links **od
   "schedule_minute": 0,
   "download_mode": "download",
   "port": 42069,
-  "download_dir": "Twitch_Clips"
+  "download_dir": "Twitch_Clips",
+  "player_clip_file": ""
 }
 ```
 
@@ -63,6 +64,7 @@ Sammelt Twitch-Clips nach Zeitraum & Mindest-Views, extrahiert `.mp4`-Links **od
 | `download_mode` | `download` – Clips herunterladen · `local` – nur `.mp4`-Links sammeln |
 | `port` | HTTP-Port (Standard: `42069`) |
 | `download_dir` | Zielordner für heruntergeladene Clips |
+| `player_clip_file` | Optional ausgewählte `*_mp4_urls.json`; leer = aktueller Channel |
 
 Alternativ können `CLIENT_ID`, `CLIENT_SECRET`, `CHANNEL_NAME`, `DAYS_BACK`, `MIN_VIEWS`, `WHITELIST` und `BLACKLIST` auch per `.env`-Datei gesetzt werden (Fallback).
 
