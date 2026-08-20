@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"io"
 	"log"
 	"os"
@@ -40,14 +42,17 @@ func commonSetup() (logger *log.Logger, ring *LogRing, srv *Server, sched *Sched
 
 	// Fetch function used by scheduler and tray menu
 	fetchJob = func() {
-		if !state.TryStart() {
+		ctx, started := state.TryStart()
+		if !started {
 			logger.Println("⚠️  Fetch already running, skipping.")
 			return
 		}
 		c := LoadConfig() // always re-read from disk so direct file edits are honoured
-		err := FetchAndWrite(c, logger)
+		err := FetchAndWrite(ctx, c, logger)
 		errStr := ""
-		if err != nil {
+		if errors.Is(err, context.Canceled) {
+			logger.Println("⏹️ Fetch cancelled.")
+		} else if err != nil {
 			errStr = err.Error()
 			logger.Printf("❌ Fetch error: %v", err)
 		}

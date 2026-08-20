@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,13 +22,18 @@ type Clip struct {
 }
 
 // GetOAuthToken retrieves a client-credentials OAuth token from Twitch.
-func GetOAuthToken(clientID, clientSecret string) (string, error) {
+func GetOAuthToken(ctx context.Context, clientID, clientSecret string) (string, error) {
 	params := url.Values{
 		"client_id":     {clientID},
 		"client_secret": {clientSecret},
 		"grant_type":    {"client_credentials"},
 	}
-	resp, err := http.PostForm("https://id.twitch.tv/oauth2/token", params)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://id.twitch.tv/oauth2/token", strings.NewReader(params.Encode()))
+	if err != nil {
+		return "", fmt.Errorf("create oauth request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("oauth request: %w", err)
 	}
@@ -51,8 +57,8 @@ func GetOAuthToken(clientID, clientSecret string) (string, error) {
 }
 
 // GetUserID resolves a channel login name to a Twitch broadcaster ID.
-func GetUserID(channelName, clientID, token string) (string, error) {
-	req, _ := http.NewRequest("GET",
+func GetUserID(ctx context.Context, channelName, clientID, token string) (string, error) {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet,
 		"https://api.twitch.tv/helix/users?login="+url.QueryEscape(channelName), nil)
 	req.Header.Set("Client-ID", clientID)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -84,7 +90,7 @@ func GetUserID(channelName, clientID, token string) (string, error) {
 
 // GetClips fetches all clips for a broadcaster in the given time window,
 // filtered by minimum view count and optional whitelist/blacklist of game names.
-func GetClips(broadcasterID, clientID, token string, startedAt, endedAt time.Time, minViews int, whitelist, blacklist []string) ([]Clip, error) {
+func GetClips(ctx context.Context, broadcasterID, clientID, token string, startedAt, endedAt time.Time, minViews int, whitelist, blacklist []string) ([]Clip, error) {
 	baseURL := "https://api.twitch.tv/helix/clips"
 	params := url.Values{
 		"broadcaster_id": {broadcasterID},
@@ -102,7 +108,7 @@ func GetClips(broadcasterID, clientID, token string, startedAt, endedAt time.Tim
 		}
 		reqURL := baseURL + "?" + params.Encode()
 
-		req, _ := http.NewRequest("GET", reqURL, nil)
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 		req.Header.Set("Client-ID", clientID)
 		req.Header.Set("Authorization", "Bearer "+token)
 
@@ -159,7 +165,7 @@ func GetClips(broadcasterID, clientID, token string, startedAt, endedAt time.Tim
 	// Apply whitelist/blacklist only when needed.
 	// The clips API does not return game_name, so we resolve game_ids first.
 	if len(whitelist) > 0 || len(blacklist) > 0 {
-		gameNames, err := resolveGameNames(clips, clientID, token)
+		gameNames, err := resolveGameNames(ctx, clips, clientID, token)
 		if err != nil {
 			return nil, fmt.Errorf("resolve game names: %w", err)
 		}
@@ -177,7 +183,7 @@ func GetClips(broadcasterID, clientID, token string, startedAt, endedAt time.Tim
 
 // resolveGameNames calls /helix/games for all unique game_ids found in clips
 // and returns a map[gameID]gameName.
-func resolveGameNames(clips []Clip, clientID, token string) (map[string]string, error) {
+func resolveGameNames(ctx context.Context, clips []Clip, clientID, token string) (map[string]string, error) {
 	seen := make(map[string]bool)
 	var ids []string
 	for _, c := range clips {
@@ -203,7 +209,7 @@ func resolveGameNames(clips []Clip, clientID, token string) (map[string]string, 
 		for _, id := range batch {
 			params.Add("id", id)
 		}
-		req, _ := http.NewRequest("GET", "https://api.twitch.tv/helix/games?"+params.Encode(), nil)
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.twitch.tv/helix/games?"+params.Encode(), nil)
 		req.Header.Set("Client-ID", clientID)
 		req.Header.Set("Authorization", "Bearer "+token)
 

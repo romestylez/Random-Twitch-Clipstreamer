@@ -11,5 +11,6 @@
   "schedule_minute": 0,
   "download_mode": "download",
   "port": 42069,
-  "download_dir": "Twitch_Clips"
+  "download_dir": "Twitch_Clips",
+  "player_clip_file": ""
 }

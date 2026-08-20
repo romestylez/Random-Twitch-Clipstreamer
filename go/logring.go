@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -61,18 +62,32 @@ type FetchState struct {
 	running   bool
 	lastRun   time.Time
 	lastError string
+	cancel    context.CancelFunc
 }
 
 // TryStart atomically marks a fetch as running.
 // Returns false if a fetch is already in progress.
-func (s *FetchState) TryStart() bool {
+func (s *FetchState) TryStart() (context.Context, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.running {
-		return false
+		return nil, false
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	s.running = true
 	s.lastError = ""
+	s.cancel = cancel
+	return ctx, true
+}
+
+// Cancel requests cancellation of the running fetch.
+func (s *FetchState) Cancel() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.running || s.cancel == nil {
+		return false
+	}
+	s.cancel()
 	return true
 }
 
@@ -80,9 +95,13 @@ func (s *FetchState) TryStart() bool {
 func (s *FetchState) Finish(errMsg string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.cancel != nil {
+		s.cancel()
+	}
 	s.running = false
 	s.lastRun = time.Now()
 	s.lastError = errMsg
+	s.cancel = nil
 }
 
 // Snapshot returns a point-in-time copy of the fetch state.
